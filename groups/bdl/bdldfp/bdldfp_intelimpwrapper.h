@@ -75,6 +75,7 @@ BSLS_IDENT("$Id$")
      && !defined(BSLS_PLATFORM_OS_WINDOWS)
 #      define __thread
 #      define __QNX__
+#      define BDLDFP_INTELIMPWRAPPER_FAKE_DEFINE_QNX
 #    endif
 
 // In C++, there's always a 'wchar_t' type, so we need to tell Intel's library
@@ -113,6 +114,12 @@ BSLS_IDENT("$Id$")
 #    ifdef BDLDFP_INTELIMPWRAPPER_FAKE_DEFINE_LINUX
 #      undef LINUX
 #      undef BDLDFP_INTELIMPWRAPPER_FAKE_DEFINE_LINUX
+#    endif
+
+#    ifdef BDLDFP_INTELIMPWRAPPER_FAKE_DEFINE_QNX
+#      undef __thread
+#      undef __QNX__
+#      undef BDLDFP_INTELIMPWRAPPER_FAKE_DEFINE_QNX
 #    endif
 
 #    define INCLUDED_BID_CONF
