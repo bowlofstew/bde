@@ -74,9 +74,10 @@ BSLS_IDENT("$Id: $")
 //      return 0;
 //  }
 //..
-///Example 2: Reading the 'VALUE' member
-/// - - - - - - - - - - - - - - - - - -
-// In addition to forming new types, the value of the integral paramameter to
+//
+///Example 2: Reading the 'VALUE' Member
+///- - - - - - - - - - - - - - - - - - -
+// In addition to forming new types, the value of the integral parameter to
 // 'MetaInt' is "saved" in the enum member 'VALUE', and is accessible for use
 // in compile-time or run-time operations.
 //..
@@ -107,6 +108,10 @@ BSLS_IDENT("$Id: $")
 
 #ifndef INCLUDED_BSLMF_TAG
 #include <bslmf_tag.h>
+#endif
+
+#ifndef INCLUDED_BSLS_COMPILERFEATURES
+#include <bsls_compilerfeatures.h>
 #endif
 
 namespace BloombergLP {
@@ -244,9 +249,9 @@ struct MetaInt<1> : public bsl::true_type {
     // expression, 'expr', is not evaluated at run-time.
 
 
-// ===========================================================================
+// ============================================================================
 //                            INLINE FUNCTIONS
-// ===========================================================================
+// ============================================================================
 
 // CREATORS
 template <int INT_VALUE>

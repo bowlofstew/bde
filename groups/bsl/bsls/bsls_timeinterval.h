@@ -93,8 +93,17 @@ BSLS_IDENT("$Id: $")
 #include <bsls_assert.h>
 #endif
 
+#ifndef INCLUDED_BSLS_NATIVESTD
+#include <bsls_nativestd.h>
+#endif
+
 #ifndef INCLUDED_BSLS_TYPES
 #include <bsls_types.h>
+#endif
+
+#ifndef INCLUDED_IOSFWD
+#include <iosfwd>
+#define INCLUDED_IOSFWD
 #endif
 
 #ifndef INCLUDED_LIMITS_H
@@ -102,8 +111,8 @@ BSLS_IDENT("$Id: $")
 #define INCLUDED_LIMITS_H
 #endif
 
-#pragma bde_verify push
-#pragma bde_verify -FABC01  // 'add*' operations are ordered by time unit
+// BDE_VERIFY pragma: push
+// BDE_VERIFY pragma: -FABC01  // 'add*' operations are ordered by time unit
 
 namespace BloombergLP {
 namespace bsls {
@@ -158,6 +167,19 @@ class TimeInterval {
         // valid time interval can be constructed from 'seconds' and
         // 'nanoseconds' if their sum results in a time interval whose total
         // number of seconds can be represented with a 64-bit signed integer.
+
+                                  // Aspects
+
+    static int maxSupportedBdexVersion(int versionSelector);
+        // Return the maximum valid BDEX format version, as indicated by the
+        // specified 'versionSelector', to be passed to the 'bdexStreamOut'
+        // method.  Note that it is highly recommended that 'versionSelector'
+        // be formatted as "YYYYMMDD", a date representation.  Also note that
+        // 'versionSelector' should be a *compile*-time-chosen value that
+        // selects a format version supported by both externalizer and
+        // unexternalizer.  See the 'bslx' package-level documentation for more
+        // information on BDEX streaming of value-semantic types and
+        // containers.
 
     // CREATORS
     TimeInterval();
@@ -361,6 +383,33 @@ class TimeInterval {
         // sign or magnitude of either argument except that they must not
         // violate the method's preconditions.
 
+    void setIntervalRaw(bsls::Types::Int64 seconds, int nanoseconds = 0);
+        // Set this time interval to have the value given by the sum of the
+        // specified integral number of 'seconds', and the optionally specified
+        // integral number of 'nanoseconds', where 'seconds' and 'nanoseconds'
+        // form a canonical representation of a time interval (see
+        // {Representation}).  If unspecified, 'nanoseconds' is 0.  The
+        // behavior is undefined unless
+        // '-999999999 <= nanoseconds <= 999999999' and 'seconds' and
+        // 'nanoseconds' are either both non-negative or both non-positive.
+        // Note that this function provides a subset of the defined behavior of
+        // 'setInterval' chosen to minimize runtime performance cost.
+
+                                  // Aspects
+
+    template <class STREAM>
+    STREAM& bdexStreamIn(STREAM& stream, int version);
+        // Assign to this object the value read from the specified input
+        // 'stream' using the specified 'version' format, and return a
+        // reference to 'stream'.  If 'stream' is initially invalid, this
+        // operation has no effect.  If 'version' is not supported, this object
+        // is unaltered and 'stream' is invalidated, but otherwise unmodified.
+        // If 'version' is supported but 'stream' becomes invalid during this
+        // operation, this object has an undefined, but valid, state.  Note
+        // that no version is read from 'stream'.  See the 'bslx' package-level
+        // documentation for more information on BDEX streaming of
+        // value-semantic types and containers.
+
     // ACCESSORS
     int nanoseconds() const;
         // Return the nanoseconds field in the canonical representation of the
@@ -419,9 +468,19 @@ class TimeInterval {
                                   // Aspects
 
     template <class STREAM>
-    STREAM& print(STREAM& stream,
-                  int     level          = 0,
-                  int     spacesPerLevel = 4) const;
+    STREAM& bdexStreamOut(STREAM& stream, int version) const;
+        // Write the value of this object, using the specified 'version'
+        // format, to the specified output 'stream', and return a reference to
+        // 'stream'.  If 'stream' is initially invalid, this operation has no
+        // effect.  If 'version' is not supported, 'stream' is invalidated, but
+        // otherwise unmodified.  Note that 'version' is not written to
+        // 'stream'.  See the 'bslx' package-level documentation for more
+        // information on BDEX streaming of value-semantic types and
+        // containers.
+
+    native_std::ostream& print(native_std::ostream& stream,
+                               int                  level          = 0,
+                               int                  spacesPerLevel = 4) const;
         // Write the value of this object to the specified output 'stream' in a
         // human-readable format, and return a reference providing modifiable
         // access to 'stream'.  Optionally specify an initial indentation
@@ -500,9 +559,8 @@ bool operator>=(double lhs, const TimeInterval& rhs);
     // is undefined unless operands of type 'double' can be converted to valid
     // 'TimeInterval' objects.
 
-template <class STREAM>
-STREAM& operator<<(STREAM&             stream,
-                   const TimeInterval& timeInterval);
+native_std::ostream& operator<<(native_std::ostream& stream,
+                                const TimeInterval&  timeInterval);
     // Write the value of the specified 'timeInterval' to the specified output
     // 'stream' in a single-line format, and return a reference providing
     // modifiable access to 'stream'.  If 'stream' is not valid on entry, this
@@ -519,6 +577,12 @@ STREAM& operator<<(STREAM&             stream,
                         // ------------------
 
 // CLASS METHODS
+inline
+int TimeInterval::maxSupportedBdexVersion(int /* versionSelector */)
+{
+    return 1;
+}
+
 inline
 bool TimeInterval::isValid(bsls::Types::Int64 seconds,
                            int                nanoseconds)
@@ -696,6 +760,51 @@ void TimeInterval::setTotalNanoseconds(bsls::Types::Int64 nanoseconds)
                 static_cast<int>(nanoseconds % k_NANOSECS_PER_SEC));
 }
 
+inline
+void TimeInterval::setIntervalRaw(bsls::Types::Int64 seconds,
+                                  int                nanoseconds)
+{
+    BSLS_ASSERT_SAFE(-k_NANOSECS_PER_SEC < nanoseconds &&
+                      k_NANOSECS_PER_SEC > nanoseconds);
+    BSLS_ASSERT_SAFE((seconds >= 0 && nanoseconds >= 0) ||
+                     (seconds <= 0 && nanoseconds <= 0));
+
+    d_seconds     = seconds;
+    d_nanoseconds = nanoseconds;
+}
+
+                                  // Aspects
+
+template <class STREAM>
+STREAM& TimeInterval::bdexStreamIn(STREAM& stream, int version)
+{
+    if (stream) {
+        switch (version) { // switch on the schema version
+          case 1: {
+            bsls::Types::Int64 seconds;
+            int                nanoseconds;
+            stream.getInt64(seconds);
+            stream.getInt32(nanoseconds);
+
+            if (stream && (   (seconds >= 0 && nanoseconds >= 0)
+                           || (seconds <= 0 && nanoseconds <= 0))
+                       && nanoseconds > -k_NANOSECS_PER_SEC
+                       && nanoseconds <  k_NANOSECS_PER_SEC) {
+                d_seconds     = seconds;
+                d_nanoseconds = nanoseconds;
+            }
+            else {
+                stream.invalidate();
+            }
+          } break;
+          default: {
+            stream.invalidate();  // unrecognized version number
+          }
+        }
+    }
+    return stream;
+}
+
 // ACCESSORS
 inline
 int TimeInterval::nanoseconds() const
@@ -779,34 +888,21 @@ double TimeInterval::totalSecondsAsDouble() const
                                   // Aspects
 
 template <class STREAM>
-STREAM& TimeInterval::print(STREAM& stream,
-                            int     level,
-                            int     spacesPerLevel) const
+STREAM& TimeInterval::bdexStreamOut(STREAM& stream, int version) const
 {
-    if (level > 0 && spacesPerLevel != 0) {
-        // If 'level <= 0' the value will not be indented, otherwise the
-        // indentation is 'level * abs(spacesPerLevel)'.
-
-        // Use 'unsigned' to suppress gcc compiler warning.
-
-        unsigned int indentation = level *
-                      (spacesPerLevel < 0 ? -spacesPerLevel : spacesPerLevel);
-        for (unsigned int i = 0; i < indentation; ++i) {
-            stream << ' ';
+    if (stream) {
+        switch (version) { // switch on the schema version
+          case 1: {
+            stream.putInt64(d_seconds);
+            stream.putInt32(d_nanoseconds);
+          } break;
+          default: {
+            stream.invalidate();  // unrecognized version number
+          }
         }
-    }
-
-    stream << '(' << d_seconds     << ", "
-                  << d_nanoseconds << ')';
-
-    // We suppress the trailing end-of-line if 'spacesPerLevel < 0'.
-
-    if (spacesPerLevel >= 0) {
-        stream << '\n';
     }
     return stream;
 }
-
 
 }  // close package namespace
 
@@ -982,61 +1078,26 @@ bool bsls::operator>=(double lhs, const TimeInterval& rhs)
     return TimeInterval(lhs) >= rhs;
 }
 
-template <class STREAM>
-inline
-STREAM& bsls::operator<<(STREAM&             stream,
-                         const TimeInterval& timeInterval)
-{
-    return timeInterval.print(stream, 0, -1);
-}
+// BDE_VERIFY pragma: pop
 
-#pragma bde_verify pop
+// IMPLEMENTATION NOTE: A 'is_trivially_copyable' trait declaration has been
+// moved to 'bslmf_istriviallycopyable.h' to work around issues on the Sun CC
+// 5.13 compiler.  We had previously forward declared
+// 'bsl::is_trivially_copyable' and specialized it for 'TimeInterval' here (see
+// the 2.24 release tags).
+//..
+//  namespace bsl {
+//  template <>
+//  struct is_trivially_copyable<BloombergLP::bsls::TimeInterval> :
+//                                                            bsl::true_type {
+//      // This template specialization for 'is_trivially_copyable' indicates
+//      // that 'Date' is a trivially copyable type.
+//  };
+//  }
+//..
 
 }  // close enterprise namespace
 
-#pragma bde_verify push
-#pragma bde_verify -UC01
-#pragma bde_verify -CD01
-#pragma bde_verify -CB01
-#pragma bde_verify -CP01
-#pragma bde_verify -TR04
-
-namespace bsl {
-
-// IMPLEMENTATION NOTE: The following declaration of the
-// 'is_trivially_copyable' meta-function (and 'integral_constant') is
-// unfortunate, but necessary as the 'is_trivially_copyable' trait is defined
-// in 'bslmf'.
-
-template <class TYPE>
-struct is_trivially_copyable;
-
-template <class TYPE, TYPE VAL>
-struct integral_constant;
-
-template <>
-struct is_trivially_copyable<BloombergLP::bsls::TimeInterval>  {
-    // This template specialization for 'is_trivially_copyable' indicates that
-    // 'TimeInterval' is a trivially copyable type.  Note that we replicate the
-    // properties of 'bsl::true_type' to avoid a circular dependency.
-
-    // PUBLIC TYPES
-    typedef bool                          value_type;
-    typedef integral_constant<bool, true> type;
-
-    // PUBLIC CLASS DATA
-    static const bool value = true;
-
-    // ACCESSORS
-    operator value_type() const { return true; }
-        // Return 'true'.
-
-    // COMPATIBILITY MEMBERS
-    static const bool VALUE = value;
-};
-#pragma bde_verify pop
-
-}  // close bsl namespace
 
 #endif
 

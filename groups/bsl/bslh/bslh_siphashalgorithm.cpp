@@ -7,6 +7,7 @@ BSLS_IDENT("$Id$ $CSID$")
 #include <bsls_assert.h>
 #include <bsls_types.h>
 #include <bsls_platform.h>
+#include <bsls_byteorder.h>
 
 #include <algorithm>
 #include <stddef.h>  // for 'size_t'
@@ -112,37 +113,17 @@ static void sipround(u64& v0, u64& v1, u64& v2, u64& v3)
 inline
 static u64 u8to64_le(const u8* p)
     // Return the 64-bit integer representation of the specified 'p' taking
-    // into account endianness.  Undefined unless 'p' points to at least one
-    // byte of initialized memory.
+    // into account endianness.  Undefined unless 'p' points to at least eight
+    // bytes of initialized memory.
 {
     BSLS_ASSERT(p);
 
-#if defined(BSLS_PLATFORM_OS_SOLARIS)
-    u64 ret;
-  #ifdef BSLS_PLATFORM_IS_LITTLE_ENDIAN
-    memcpy(&ret, p, sizeof(ret));
-    return ret;
-  #else
-    char *retPtr = reinterpret_cast<char *>(&ret);
-    retPtr[0] = p[7];
-    retPtr[1] = p[6];
-    retPtr[2] = p[5];
-    retPtr[3] = p[4];
-    retPtr[4] = p[3];
-    retPtr[5] = p[2];
-    retPtr[6] = p[1];
-    retPtr[7] = p[0];
-    return ret;
-  #endif
+#if defined(BSLS_PLATFORM_CPU_X86) || defined(BSLS_PLATFORM_CPU_X86_64)
+    return *reinterpret_cast<const u64 *>(p);  // Ignore alignment.
 #else
-  #ifdef BSLS_PLATFORM_IS_LITTLE_ENDIAN
-    return *static_cast<u64 const*>(static_cast<void const*>(p));
-  #else
-    return static_cast<u64>(p[7]) << 56 | static_cast<u64>(p[6]) << 48 |
-           static_cast<u64>(p[5]) << 40 | static_cast<u64>(p[4]) << 32 |
-           static_cast<u64>(p[3]) << 24 | static_cast<u64>(p[2]) << 16 |
-           static_cast<u64>(p[1]) <<  8 | static_cast<u64>(p[0]);
-  #endif
+    u64 ret;
+    memcpy(&ret, p, sizeof(ret));
+    return BSLS_BYTEORDER_LE_U64_TO_HOST(ret);
 #endif
 }
 
@@ -157,21 +138,13 @@ SipHashAlgorithm::SipHashAlgorithm(const char *seed)
 {
     BSLS_ASSERT(seed);
 
-#if defined(BSLS_PLATFORM_OS_SOLARIS)
-    memcpy(&d_alignment, seed, 8);
-    d_v2 ^= d_alignment;
-    d_v0 ^= d_alignment;
+    u64 k0 = u8to64_le(reinterpret_cast<const u8*>(&seed[0]));
+    u64 k1 = u8to64_le(reinterpret_cast<const u8*>(&seed[k_SEED_LENGTH / 2]));
 
-    memcpy(&d_alignment, seed + 8, 8);
-    d_v3 ^= d_alignment;
-    d_v1 ^= d_alignment;
-#else
-    const u64 *seedPtr = reinterpret_cast<const u64 *>(seed);
-    d_v3 ^= seedPtr[1];
-    d_v2 ^= seedPtr[0];
-    d_v1 ^= seedPtr[1];
-    d_v0 ^= seedPtr[0];
-#endif
+    d_v0 ^= k0;
+    d_v1 ^= k1;
+    d_v2 ^= k0;
+    d_v3 ^= k1;
 }
 
 void

@@ -31,7 +31,7 @@ BSLS_IDENT("$Id: $")
 ///-----
 // In this section we show intended use of this component.
 //
-///Example 1 - Force a Link-Time Dependency on 's_coerce'
+///Example 1: Force a Link-Time Dependency on 's_coerce'
 ///- - - - - - - - - - - - - - - - - - - - - - - - - - -
 // First, declare a variable 's_coerce' of type 'const char *':
 //..
@@ -56,7 +56,8 @@ BSLS_IDENT("$Id: $")
 
 namespace BloombergLP {
 
-#if  (defined(BSLS_PLATFORM_OS_LINUX) && defined(BSLS_PLATFORM_CMP_GNU)) \
+#if  (defined(BSLS_PLATFORM_OS_LINUX)                                         \
+      && (defined(BSLS_PLATFORM_CMP_GNU) || defined(BSLS_PLATFORM_CMP_CLANG)))\
   || defined(BSLS_PLATFORM_OS_DARWIN)
 #define BSLS_LINKCOERCION_FORCE_SYMBOL_DEPENDENCY(type,             \
                                                   refName,          \

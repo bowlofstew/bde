@@ -10,12 +10,14 @@
 #include <bslma_newdeleteallocator.h>
 #include <bslma_testallocator.h>
 #include <bslma_usesbslmaallocator.h>
+#include <bslmf_assert.h>
 #include <bslmf_isconvertible.h>
 #include <bsls_alignmenttotype.h>
 #include <bsls_alignmentutil.h>
 #include <bsls_assert.h>
 #include <bsls_asserttest.h>
 #include <bsls_bsltestutil.h>
+#include <bsls_exceptionutil.h>
 #include <bsls_platform.h>
 #include <bsls_stopwatch.h>
 #include <bsls_types.h>
@@ -28,6 +30,7 @@
 #include <bslstl_string.h>
 #include <bslstl_vector.h>
 
+#include <stdio.h>
 #include <stdlib.h>      // 'atoi'
 #include <string.h>      // 'strcmp', 'strcpy'
 
@@ -37,8 +40,15 @@
 #endif
 #endif
 
-#pragma bde_verify -TP03  // Many tests without assigned test case
-#pragma bde_verify -UC01  // Warning on all-const identifiers is too aggressive
+// BDE_VERIFY pragma: -FE01  // Testing throws exceptions not derived from std
+
+// Warnings that we hope to stop silencing one day:
+// BDE_VERIFY pragma:-IND01 // Test blocks not indenting after if (printf(""))
+// BDE_VERIFY pragma:-IND04 // Many violations of aligning variable declaration
+// BDE_VERIFY pragma:-TP03  // Many tests without assigned test case
+// BDE_VERIFY pragma:-UC01  // Warning on all-const identifiers is too strict
+
+#undef ESP  //  From somewhere in SunOS2.10/x86 system headers
 
 using namespace BloombergLP;
 
@@ -48,7 +58,7 @@ using namespace BloombergLP;
 //                                  Overview
 //                                  --------
 // This test driver tests the functionality of a complex facility consisting of
-// two in-core value semantic types (one of which has pointer semantics), a
+// two in-core value-semantic types (one of which has pointer semantics), a
 // utility class, and a simple functor (which does nothing!).  Testing is
 // complicated that the two value-semantic types have a cycle in their public
 // interface, so some parts of their testing must be deferred until after the
@@ -75,6 +85,19 @@ using namespace BloombergLP;
 //   allocator, and fail if a TestAllocator is installed as the default in
 //   'main'.  This should be addressed as part of resolving DRQS 27411521.
 //-----------------------------------------------------------------------------
+//
+// bsl::enable_shared_from_this
+//-----------------------------
+// CREATORS
+// [35] enable_shared_from_this()
+// [35] enable_shared_from_this(const enable_shared_from_this&)
+// MANIPULATORS
+// [35] ~enable_shared_from_this()
+// [35] enable_shared_from_this& operator=(const enable_shared_from_this&)
+//
+// ACCESSORS
+// [35] shared_ptr<T> shared_from_this()
+// [35] shared_ptr<const T> shared_from_this() const
 //
 // bsl::shared_ptr
 //----------------
@@ -235,9 +258,9 @@ using namespace BloombergLP;
 // reference-counted shared objects (managed by 'bsl::shared_ptr'.  The
 // functions supported by 'bsl::weak_ptr' include creating weak references (via
 // multiple constructors), changing the weak pointer object being referenced
-// (via the assignment operators), getting a shared pointer (via the
-// 'acquireSharedPtr' and 'lock' functions), resetting the weak pointer (via
-// 'reset'), and destroying the weak pointer.
+// (via the assignment operators), getting a shared pointer (via the 'lock'
+// function), resetting the weak pointer (via 'reset'), and destroying the weak
+// pointer.
 //
 // All the functions in this component are reasonably straight-forward and
 // typically increment or decrement the number of strong or weak references as
@@ -411,7 +434,7 @@ using namespace BloombergLP;
 // [  ] void TestDriver::doNotDelete(TYPE *)
 //
 // ============================================================================
-//                      STANDARD BDE ASSERT TEST MACROS
+//                     STANDARD BSL ASSERT TEST FUNCTION
 // ----------------------------------------------------------------------------
 // NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
 // FUNCTIONS, INCLUDING IOSTREAMS.
@@ -420,21 +443,26 @@ namespace {
 
 int testStatus = 0;
 
-void aSsErT(bool b, const char *s, int i)
+void aSsErT(bool condition, const char *message, int line)
 {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
 }  // close unnamed namespace
 
 // ============================================================================
-//                      STANDARD BDE TEST DRIVER MACROS
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
 // ----------------------------------------------------------------------------
 
 #define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
 #define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
 #define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
@@ -443,13 +471,12 @@ void aSsErT(bool b, const char *s, int i)
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
-#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  NEGATIVE-TEST MACRO ABBREVIATIONS
@@ -469,12 +496,15 @@ void aSsErT(bool b, const char *s, int i)
 #define ASSERT_OPT_PASS_RAW(EXPR)  BSLS_ASSERTTEST_ASSERT_OPT_PASS_RAW(EXPR)
 #define ASSERT_OPT_FAIL_RAW(EXPR)  BSLS_ASSERTTEST_ASSERT_OPT_FAIL_RAW(EXPR)
 
-#pragma bde_verify push
-#pragma bde_verify -FABC01 // Functions ordered for expository purpose in usage
+// Disable specific bde_verify warnings where practice of usage example may
+// differ.
 
-#pragma bde_verify -FD01  // Function needs contract, we probably should fix
-#pragma bde_verify -FD02  // Banners diagnose badly unless we fix for FD01
-#pragma bde_verify -FD03  // no contract, so no ticks
+// BDE_VERIFY pragma: push
+// BDE_VERIFY pragma: -FABC01 // Functions ordered for expository purpose
+
+// BDE_VERIFY pragma: -FD01  // Function needs contract, we probably should fix
+// BDE_VERIFY pragma: -FD02  // Banners diagnose badly unless we fix for FD01
+// BDE_VERIFY pragma: -FD03  // no contract, so no ticks
 
 // ============================================================================
 //                              USAGE EXAMPLES
@@ -556,7 +586,7 @@ namespace NAMESPACE_USAGE_EXAMPLE_1 {
 // Note that the shared pointer allocates both the reference count and the
 // 'MyUser' object in a single region of memory (which is the memory that will
 // eventually be deallocated), but refers to the 'MyUser' object only.
-}  // close usage example namespace
+}  // close namespace NAMESPACE_USAGE_EXAMPLE_1
 
 namespace NAMESPACE_USAGE_EXAMPLE_2 {
 using     NAMESPACE_USAGE_EXAMPLE_1::MyUser;
@@ -649,7 +679,8 @@ using     NAMESPACE_USAGE_EXAMPLE_1::MyUser;
         return enqueueTransaction(user, transaction);
     }
 //..
-}  // close usage example namespace
+}  // close namespace NAMESPACE_USAGE_EXAMPLE_2
+
 
 // Function definitions elided from usage examples, but requiring definitions
 // for the test driver to link.
@@ -663,7 +694,8 @@ int MyTransactionManager::enqueueTransaction(bsl::shared_ptr<MyUser>,
     return 0;
 }
 
-}  // close usage namespace
+}  // close namespace NAMESPACE_USAGE_EXAMPLE_2
+
 //=============================================================================
 //                                USAGE EXAMPLE (weak_ptr)
 //-----------------------------------------------------------------------------
@@ -923,7 +955,7 @@ int MyTransactionManager::enqueueTransaction(bsl::shared_ptr<MyUser>,
     }
 //..
 
-#pragma bde_verify pop
+// BDE_VERIFY pragma: pop
 
 // Define traits outside of the text of the usage example as they distract from
 // the core message.
@@ -935,7 +967,7 @@ template<>
 struct UsesBslmaAllocator<NAMESPACE_USAGE_EXAMPLE_1::MyUser>
      : bsl::true_type {};
 
-}  // close traits namespace
+}  // close namespace bslma
 }  // close enterprise namespace
 
 //=============================================================================
@@ -986,7 +1018,8 @@ int    y = 2;
 double z = 3.0;
 
 bslma::TestAllocator g_alloc16("test case 16");
-const bsl::shared_ptr<int> ptrNil((int *)0, &g_alloc16);
+
+const bsl::shared_ptr<int> ptrNil(0, &g_alloc16);
 const bsl::shared_ptr<int> ptr1(&x, bslstl::SharedPtrNilDeleter(), &g_alloc16);
 const bsl::shared_ptr<int> ptr2(&y, bslstl::SharedPtrNilDeleter(), &g_alloc16);
 const bsl::shared_ptr<double>
@@ -1004,7 +1037,7 @@ bsl::shared_ptr<int> ptrNilFun()
     return ptrNil;
 }
 
-}  // close test case namespace
+}  // close namespace NAMESPACE_TEST_CASE_16
 
                    // *** 'MyTestObject' CLASS HIERARCHY ***
 
@@ -1086,9 +1119,9 @@ class MyTestDerivedObject : public MyTestObject2, public MyTestObject {
 
   public:
     // CREATORS
-    explicit MyTestDerivedObject(const MyTestObject& orig);
+    explicit MyTestDerivedObject(const MyTestObject& original);
         // Create a 'MyTestDerivedObject' using the same counters (if any) as
-        // the specified 'orig' object.
+        // the specified 'original' object.
 
     explicit MyTestDerivedObject(bsls::Types::Int64 *counter,
                                  bsls::Types::Int64 *copyCounter = 0);
@@ -1101,7 +1134,7 @@ class MyTestDerivedObject : public MyTestObject2, public MyTestObject {
                        // ======================
 
 class MostEvilTestType {
-    // This class provides the most awkward type imagninable that should be
+    // This class provides the most awkward type imaginable that should be
     // supported as an element type for the standard 'shared_ptr' template.
 
   private:
@@ -1140,6 +1173,58 @@ class MostEvilTestType {
     // ACCESSORS
     int data() const { return d_data; }
         // Return the value of the 'data' attribute of this object.
+};
+
+                     // =======================
+                     // class ConstructorFailed
+                     // =======================
+
+struct ConstructorFailed {};
+
+                     // ==========================
+                     // class MyInstrumentedObject
+                     // ==========================
+
+class MyInstrumentedObject {
+    // This class provides a test object that keeps track of how many objects
+    // have been deleted.  Optionally, also keeps track of how many objects
+    // have been copied.
+
+    // DATA
+    int *d_constructCounter_p;
+    int *d_destroyCounter_p;
+
+  private:
+    // NOT IMPLEMENTED
+    MyInstrumentedObject(const MyInstrumentedObject& original); // = delete
+    MyInstrumentedObject& operator=(const MyInstrumentedObject& other);
+                                                                    // = delete
+
+  public:
+    // CREATORS
+
+    MyInstrumentedObject(int  *constructCounter,
+                         int  *destroyCounter,
+                         bool  throwAfterInit = false);
+        // Create a 'MyInstrumentedObject' using the specified
+        // 'constructCounter' to track the number of times a constructor is
+        // called, the specified 'destroyCounter' to track the number of times
+        // a destructor is called.  If the optionally specified
+        // 'throwAfterInit' is 'true', throw a 'ConstructorFailed' exception
+        // after initializing the data members (aborting this constructor).
+
+    ~MyInstrumentedObject();
+        // Destroy this object.
+
+    // ACCESSORS
+    int *constructCounter() const;
+        // Return a pointer to the counter used to track the number of times an
+        // object of type 'MyInstrumentedObject' has been constructed.
+
+    int *destroyCounter() const;
+        // Return a pointer to the counter used to track the number of times an
+        // object of type 'MyInstrumentedObject' has been destroyed.
+
 };
 
                             // ====================
@@ -1740,6 +1825,24 @@ struct PerformanceTester
         // the level of feedback on allocator operations.
 };
 
+class ShareThis : public bsl::enable_shared_from_this<ShareThis>
+{
+  protected:
+    int *d_destructorCount_p;
+
+  public:
+    // CREATORS
+    explicit ShareThis(int *destructorCount) : d_destructorCount_p(destructorCount) {}
+    virtual ~ShareThis() { ++*d_destructorCount_p; }
+};
+
+class ShareThisDerived : public ShareThis
+{
+  public:
+    // CREATORS
+    explicit ShareThisDerived(int *destructorCount) : ShareThis(destructorCount) {}
+    ~ShareThisDerived() { *d_destructorCount_p += 10; }
+};
 
 // Traits for test types:
 namespace BloombergLP {
@@ -1756,7 +1859,7 @@ template <class TYPE>
 struct UsesBslmaAllocator<TestSharedPtrRep<TYPE> >
      : bsl::true_type {};
 
-}  // close traits namespace
+}  // close namespace bslma
 }  // close enterprise namespace
 
 // ============================================================================
@@ -1804,8 +1907,8 @@ volatile bsls::Types::Int64* MyTestObject::deleteCounter() const
                          // -------------------------
 
 // CREATORS
-MyTestDerivedObject::MyTestDerivedObject(const MyTestObject& orig)
-: MyTestObject(orig)
+MyTestDerivedObject::MyTestDerivedObject(const MyTestObject& original)
+: MyTestObject(original)
 {
 }
 
@@ -1927,6 +2030,47 @@ void MyAllocTestDeleter::operator()(OBJECT_TYPE *ptr) const
     d_deleter_p->deleteObject(ptr);
 }
 
+                     // --------------------------
+                     // class MyInstrumentedObject
+                     // --------------------------
+
+// CREATORS
+MyInstrumentedObject::MyInstrumentedObject(int  *constructCounter,
+                                           int  *destroyCounter,
+                                           bool  throwAfterInit)
+: d_constructCounter_p(constructCounter)
+, d_destroyCounter_p(destroyCounter)
+{
+    BSLS_ASSERT(constructCounter);
+    BSLS_ASSERT(destroyCounter);
+
+    if (throwAfterInit) {
+        BSLS_THROW( ConstructorFailed() );
+    }
+
+    ++*d_constructCounter_p;
+}
+
+MyInstrumentedObject::~MyInstrumentedObject()
+{
+    BSLS_ASSERT(d_destroyCounter_p);
+
+    ++*d_destroyCounter_p;
+}
+
+// ACCESSORS
+inline
+int *MyInstrumentedObject::constructCounter() const
+{
+    return d_constructCounter_p;
+}
+
+inline
+int *MyInstrumentedObject::destroyCounter() const
+{
+    return d_destroyCounter_p;
+}
+
                         // ----------------------
                         // class TestSharedPtrRep
                         // ----------------------
@@ -1945,7 +2089,7 @@ TestSharedPtrRep<TYPE>::TestSharedPtrRep(bslma::Allocator *basicAllocator)
 
 template <class TYPE>
 inline
-TestSharedPtrRep<TYPE>::TestSharedPtrRep(TYPE *dataPtr_p,
+TestSharedPtrRep<TYPE>::TestSharedPtrRep(TYPE             *dataPtr_p,
                                          bslma::Allocator *basicAllocator)
 : d_dataPtr_p(dataPtr_p)
 , d_disposeRepCount(0)
@@ -2049,7 +2193,7 @@ void PerformanceTester<POINTER>::test(bool verbose, bool allocVerbose)
 
     bsls::Types::Int64 deleteCounter, copyCounter, numAlloc, numBytes;
 
-    bsl::vector<TObj *> mZ(&ta);
+    bsl::vector<TObj *>        mZ(&ta);
     const bsl::vector<TObj *>& Z = mZ;
 
     bsls::Stopwatch timer;
@@ -2531,7 +2675,7 @@ template <class TYPE>
 void doNotDelete(TYPE *) {}
     // Do nothing
 
-}  // close 'TestDriver' namespace
+}  // close namespace TestDriver
 
 
 template <class ALLOCATOR>
@@ -2594,15 +2738,15 @@ void TestHarness<ALLOCATOR>::testCase33(bool verbose,
                  template rebind_traits<MyInplaceTestObject> TCObj_AllocTraits;
     typedef typename TCObj_AllocTraits::allocator_type TCObj_Alloc;
 
-    static const MyTestArg1 V1(1);
-    static const MyTestArg2 V2(20);
-    static const MyTestArg3 V3(23);
-    static const MyTestArg4 V4(44);
-    static const MyTestArg5 V5(66);
-    static const MyTestArg6 V6(176);
-    static const MyTestArg7 V7(878);
-    static const MyTestArg8 V8(8);
-    static const MyTestArg9 V9(912);
+    static const MyTestArg1  V1(1);
+    static const MyTestArg2  V2(20);
+    static const MyTestArg3  V3(23);
+    static const MyTestArg4  V4(44);
+    static const MyTestArg5  V5(66);
+    static const MyTestArg6  V6(176);
+    static const MyTestArg7  V7(878);
+    static const MyTestArg8  V8(8);
+    static const MyTestArg9  V9(912);
     static const MyTestArg10 V10(102);
     static const MyTestArg11 V11(111);
     static const MyTestArg12 V12(333);
@@ -2918,7 +3062,7 @@ int main(int argc, char *argv[])
     bsls::Types::Int64 numDefaultAllocations =
                                              defaultAllocator.numAllocations();
     switch (test) { case 0:  // Zero is always the leading case.
-      case 37: {
+      case 38: {
         // --------------------------------------------------------------------
         // TESTING USAGE EXAMPLE 3: 'weak_ptr'
         //   The usage example provided in the component header file must
@@ -2953,7 +3097,7 @@ int main(int argc, char *argv[])
             search(&result, peerCache, keywords);
         }
       } break;
-      case 36: {
+      case 37: {
         // --------------------------------------------------------------------
         // TESTING USAGE EXAMPLE 2: 'weak_ptr'
         //   We know this example demonstrates a memory leak, so put the
@@ -3023,7 +3167,7 @@ int main(int argc, char *argv[])
 
         // No memory leak now
       } break;
-      case 35: {
+      case 36: {
         // --------------------------------------------------------------------
         // USAGE EXAMPLE 1: 'weak_ptr'
         //   The usage example provided in the component header file must
@@ -3102,6 +3246,261 @@ int main(int argc, char *argv[])
     ASSERT(intWeakPtr2.expired());
     ASSERT(!intWeakPtr2.lock());
         }
+    } break;
+    case 35:{
+        // --------------------------------------------------------------------
+        // TESTING 'enable_shared_from_this' CONSTRUCTORS
+        //
+        // Concerns:
+        //   1) Shared_ptr constructors are able to identify correctly the
+        //      enable_shared_from_this (possibly indirect) base class and
+        //      initalize the d_weak_this weak ptr.
+        //   2) Converting from a managedPtr or auto_ptr to a shared_ptr will
+        //      initalize weak_this_ weak_ptr correctly.
+        //   3) Calling shared_from_this() will create a new reference to the
+        //      shared_ptr.
+        //   2) shared_ptr<const T> constructors are able to initialize
+        //      enable_shared_from_this<T>::d_weak_this.
+        //
+        // Plan:
+        //   Create a shared_ptrs from a class with enable_shared_from_this as
+        //   the base class. From this shared pointer call share_from_this and
+        //   ensure that the use_count() of the shared_pointer has incermented.
+        //
+        // Testing:
+        //   enable_shared_from_this()
+        //   enable_shared_from_this(const enable_shared_from_this&)
+        //   ~enable_shared_from_this()
+        //   enable_shared_from_this& operator=(const enable_shared_from_this&)
+        //   shared_ptr<T> shared_from_this()
+        //   shared_ptr<const T> shared_from_this() const
+        // --------------------------------------------------------------------
+        typedef bsl::shared_ptr<ShareThis> SharedPtr;
+        typedef bsl::shared_ptr<const ShareThis> ConstSharedPtr;
+        typedef bsl::shared_ptr<ShareThisDerived> SharedPtrDerived;
+        typedef bsl::shared_ptr<const ShareThisDerived> ConstSharedPtrDerived;
+
+        bslma::TestAllocator ta("enable_shared_from_this test",
+                                veryVeryVeryVerbose);
+
+        if (verbose) printf("\nTESTING 'enable_share_from_this<T>()'"
+                            "\n======================================\n");
+
+        int destructorCount = 0;
+
+        if (verbose) printf("\nBasic usage\n");
+        {
+            SharedPtr ptr(new ShareThis(&destructorCount));
+            ASSERT(ptr.use_count() == 1);
+            ConstSharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nBasic usage with 'const' element type\n");
+        {
+            ConstSharedPtr ptr(static_cast<const ShareThis*>(
+                                             new ShareThis(&destructorCount)));
+            ASSERT(ptr.use_count() == 1);
+            ConstSharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nBasic usage of most-derived type\n");
+        {
+            SharedPtrDerived ptr(new ShareThisDerived(&destructorCount));
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 11 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nBasic usage of 'const' most-derived type\n");
+        {
+            ConstSharedPtrDerived ptr(static_cast<const ShareThisDerived*>(
+                                      new ShareThisDerived(&destructorCount)));
+            ASSERT(ptr.use_count() == 1);
+            ConstSharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 11 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest making a copy\n");
+        {
+            SharedPtr ptr(new ShareThis(&destructorCount));
+            SharedPtr ptr_cp(ptr);
+            ASSERT(ptr.use_count() == 2);
+            SharedPtr ptr_cp2 = ptr->shared_from_this();
+            ASSERT(ptr.use_count() == 3);
+            ASSERT(ptr.get() == ptr_cp2.get());
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with BDE allocator\n");
+        {
+            SharedPtr ptr(new (ta) ShareThis(&destructorCount), &ta);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        MyTestDeleter d1(&ta);  // custom deleter for the next few tests
+
+        if (verbose) printf("\nTest with BDE allocator and deleter\n");
+        {
+            SharedPtr ptr(new (ta) ShareThis(&destructorCount), d1, &ta);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with standard allocator and deleter\n");
+        {
+            bsltf::StdStatefulAllocator<TObj, false, false, false, false>
+                                                                 stdalloc(&ta);
+            SharedPtr ptr(new (ta) ShareThis(&destructorCount), d1, stdalloc);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with in-place buffer\n");
+        {
+            SharedPtr ptr = bsl::make_shared<ShareThis>(&destructorCount);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with in-place buffer and BDE allocator\n");
+        {
+            SharedPtr ptr = bsl::allocate_shared<ShareThis>(&ta,
+                                                            &destructorCount);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with 'ManagedPtr'\n");
+        {
+            bslma::ManagedPtr<ShareThis> managedPtr(
+                                              new ShareThis(&destructorCount));
+            SharedPtr ptr(managedPtr);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with 'auto_ptr'\n");
+        {
+            std::auto_ptr<ShareThis> autoPtr(new ShareThis(&destructorCount));
+            SharedPtr ptr(autoPtr);
+            ASSERT(ptr.use_count() == 1);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 2);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest with aliased 'shared_ptr'\n");
+        {
+            ShareThis *data_p = new ShareThis(&destructorCount);
+            bsl::shared_ptr<void> voidPtr(data_p);
+            SharedPtr ptr(voidPtr, data_p);
+            ASSERT(ptr.use_count() == 2);
+            SharedPtr ptr_cp = ptr->shared_from_this();
+            ASSERT(ptr.get() == ptr_cp.get());
+            ASSERT(ptr.use_count() == 3);
+
+            ASSERTV(destructorCount, 0 == destructorCount);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
+        if (verbose) printf("\nTest extended lifetimes\n");
+        {
+            struct LocalFactory {
+                static SharedPtr make(int *destructorCount_p) {
+                    ShareThis *data_p = new ShareThis(destructorCount_p);
+                    bsl::shared_ptr<void> voidPtr(data_p);
+                    SharedPtr ptr(voidPtr, data_p);
+                    ASSERT(ptr.use_count() == 2);
+                    return ptr->shared_from_this();
+                }
+            };
+
+            bsl::weak_ptr<ShareThis> weak;
+            {
+                SharedPtr ptr = LocalFactory::make(&destructorCount);
+                ASSERTV(ptr.use_count(), ptr.use_count() == 1);
+                weak = ptr;
+
+                ASSERTV(destructorCount, 0 == destructorCount);
+                SharedPtr ptr_cp = weak.lock();
+                ASSERT(ptr.get() == ptr_cp.get());
+                ASSERTV(ptr_cp.use_count(), ptr_cp.use_count() == 2);
+            }
+
+            ASSERTV(destructorCount, 1 == destructorCount);
+            SharedPtr failPtr = weak.lock();
+            ASSERT(!failPtr);
+        }
+        ASSERTV(destructorCount, 1 == destructorCount);
+        destructorCount = 0;    // reset 'destructorCount' for next test.
+
       } break;
       case 34: {
         // --------------------------------------------------------------------
@@ -3137,15 +3536,15 @@ int main(int argc, char *argv[])
         if (verbose) printf("\nTESTING 'allocate_shared<T>(A *, ...)'"
                             "\n======================================\n");
 
-        static const MyTestArg1 V1(1);
-        static const MyTestArg2 V2(20);
-        static const MyTestArg3 V3(23);
-        static const MyTestArg4 V4(44);
-        static const MyTestArg5 V5(66);
-        static const MyTestArg6 V6(176);
-        static const MyTestArg7 V7(878);
-        static const MyTestArg8 V8(8);
-        static const MyTestArg9 V9(912);
+        static const MyTestArg1  V1(1);
+        static const MyTestArg2  V2(20);
+        static const MyTestArg3  V3(23);
+        static const MyTestArg4  V4(44);
+        static const MyTestArg5  V5(66);
+        static const MyTestArg6  V6(176);
+        static const MyTestArg7  V7(878);
+        static const MyTestArg8  V8(8);
+        static const MyTestArg9  V9(912);
         static const MyTestArg10 V10(102);
         static const MyTestArg11 V11(111);
         static const MyTestArg12 V12(333);
@@ -3413,6 +3812,23 @@ int main(int argc, char *argv[])
             }
             ASSERT(++numDeallocations == ta.numDeallocations());
         }
+
+#if defined(BDE_BUILD_TARGET_EXC)
+        // Test for no leaks when allocated object's constructor throws..
+        int constructCount = 0;
+        int destroyCount = 0;
+        try {
+            bsl::allocate_shared<MyInstrumentedObject>(&ta,
+                                                       &constructCount,
+                                                       &destroyCount,
+                                                        true);
+            ASSERT(!"The previous expression should throw");
+        }
+        catch (const ConstructorFailed&) {
+        }
+
+        ASSERTV(constructCount, destroyCount, constructCount == destroyCount);
+#endif
       } break;
       case 33: {
         // --------------------------------------------------------------------
@@ -3466,6 +3882,26 @@ int main(int argc, char *argv[])
                        veryVerbose,
                        veryVeryVerbose,
                        veryVeryVeryVerbose);
+
+#if defined(BDE_BUILD_TARGET_EXC)
+        // Test for no leaks when allocated object's constructor throws..
+        int constructCount = 0;
+        int destroyCount = 0;
+        try {
+            bslma::TestAllocator ta("double-destruct test allocator");
+            StdStatefulAllocator<MyInstrumentedObject, true, true, true, true>
+                                                                    alloc(&ta);
+            bsl::allocate_shared<MyInstrumentedObject>(alloc,
+                                                      &constructCount,
+                                                      &destroyCount,
+                                                       true);
+            ASSERT(!"The previous expression should throw");
+        }
+        catch (const ConstructorFailed&) {
+        }
+
+        ASSERTV(constructCount, destroyCount, constructCount == destroyCount);
+#endif
       } break;
       case 32: {
         // --------------------------------------------------------------------
@@ -3497,15 +3933,15 @@ int main(int argc, char *argv[])
         if (verbose) printf("\nTESTING 'make_shared'"
                             "\n=====================\n");
 
-        static const MyTestArg1 V1(1);
-        static const MyTestArg2 V2(20);
-        static const MyTestArg3 V3(23);
-        static const MyTestArg4 V4(44);
-        static const MyTestArg5 V5(66);
-        static const MyTestArg6 V6(176);
-        static const MyTestArg7 V7(878);
-        static const MyTestArg8 V8(8);
-        static const MyTestArg9 V9(912);
+        static const MyTestArg1  V1(1);
+        static const MyTestArg2  V2(20);
+        static const MyTestArg3  V3(23);
+        static const MyTestArg4  V4(44);
+        static const MyTestArg5  V5(66);
+        static const MyTestArg6  V6(176);
+        static const MyTestArg7  V7(878);
+        static const MyTestArg8  V8(8);
+        static const MyTestArg9  V9(912);
         static const MyTestArg10 V10(102);
         static const MyTestArg11 V11(111);
         static const MyTestArg12 V12(333);
@@ -3818,7 +4254,23 @@ int main(int argc, char *argv[])
             ASSERT(13 == X.get()->data());
         }
         ASSERT(++numDeallocations == ta.numDeallocations());
-      } break;
+
+#if defined(BDE_BUILD_TARGET_EXC)
+        // Test for no leaks when allocated object's constructor throws..
+        int constructCount = 0;
+        int destroyCount = 0;
+        try {
+            bsl::make_shared<MyInstrumentedObject>(&constructCount,
+                                                   &destroyCount,
+                                                    true);
+            ASSERT(!"The previous expression should throw");
+        }
+        catch (const ConstructorFailed&) {
+        }
+
+        ASSERTV(constructCount, destroyCount, constructCount == destroyCount);
+#endif
+    } break;
     case 31: {
       // --------------------------------------------------------------------
       // TESTING 'hash' FUNCTOR ('shared_ptr')
@@ -3854,7 +4306,7 @@ int main(int argc, char *argv[])
           const Obj obj3(obj2, obj1.get());
 
           {
-              const bsl::hash<Obj> hashX = {};
+              const bsl::hash<Obj> hashX = bsl::hash<Obj>();
               bsl::hash<Obj> hashY = hashX;
               (void) hashY;  // Suppress 'unused variable' warning
 
@@ -4088,7 +4540,7 @@ int main(int argc, char *argv[])
       // TESTING 'lock'
       //
       // Concerns:
-      //   Test that the 'acquireSharedPtr' and 'lock' work as expected.
+      //   Test that 'lock' works as expected.
       //
       // Plan:
       //
@@ -4712,15 +5164,15 @@ int main(int argc, char *argv[])
         if (verbose) printf("\nTESTING 'createInplace'"
                             "\n=======================\n");
 
-        static const MyTestArg1 V1(1);
-        static const MyTestArg2 V2(20);
-        static const MyTestArg3 V3(23);
-        static const MyTestArg4 V4(44);
-        static const MyTestArg5 V5(66);
-        static const MyTestArg6 V6(176);
-        static const MyTestArg7 V7(878);
-        static const MyTestArg8 V8(8);
-        static const MyTestArg9 V9(912);
+        static const MyTestArg1  V1(1);
+        static const MyTestArg2  V2(20);
+        static const MyTestArg3  V3(23);
+        static const MyTestArg4  V4(44);
+        static const MyTestArg5  V5(66);
+        static const MyTestArg6  V6(176);
+        static const MyTestArg7  V7(878);
+        static const MyTestArg8  V8(8);
+        static const MyTestArg9  V9(912);
         static const MyTestArg10 V10(102);
         static const MyTestArg11 V11(111);
         static const MyTestArg12 V12(333);
@@ -5757,7 +6209,7 @@ int main(int argc, char *argv[])
         //   assert that the result is as expected.  In order to test for the
         //   *absence* of conversion, we can use 'bslmf_isconvertible'.  In
         //   order to test for the absence of 'operator<', we use our own
-        //   definition of 'operator<', which will be picked up and which will
+        //   definition of 'operator<', which will be picked up and that will
         //   create an ambiguity if one is already defined.  We verify that our
         //   'operator<' has been picked up by using a helper function, which
         //   has two matchings, one to the return type of our definition of
@@ -5788,12 +6240,12 @@ int main(int argc, char *argv[])
         ASSERT(ptrNil != ptr1);
 
             // COMPARISON SHR PTR TO BOOL
-        ASSERT(ptrNil == false);
-        ASSERT(ptr1 != false);
+        ASSERT(static_cast<bool>(ptrNil) == false);
+        ASSERT(static_cast<bool>(ptr1)   != false);
 
             // COMPARISON BOOL TO SHR PTR
-        ASSERT(false == ptrNil);
-        ASSERT(false != ptr1);
+        ASSERT(false == static_cast<bool>(ptrNil));
+        ASSERT(false != static_cast<bool>(ptr1));
         ASSERT(true  && ptr1);
 
             // COMPARISON SHR PTR TO NULL POINTER LITERAL
@@ -7314,7 +7766,7 @@ int main(int argc, char *argv[])
       case 6: {
         // --------------------------------------------------------------------
         // TESTING RELATIONAL OPERATORS
-        //   For an in-core value semantic type, validate the (in)equality
+        //   For an in-core value-semantic type, validate the (in)equality
         //   comparison operators before validating copy and assignment.  We
         //   take advantage of the regularity of testing these operators to
         //   include the ordered comparison operators in this same test case.
@@ -7491,7 +7943,7 @@ int main(int argc, char *argv[])
             ASSERT(0 == X.rep());
             ASSERT(0 == X.use_count());
             ASSERT(false == X.unique());
-            ASSERT(false == X);
+            ASSERT(false == static_cast<bool>(X));
 
             if (verbose) printf("\nNegative Testing.\n");
             {
@@ -7521,7 +7973,7 @@ int main(int argc, char *argv[])
             ASSERT(static_cast<void *>(p) == X.rep()->originalPtr());
             ASSERT(1 == X.use_count());
             ASSERT(true == X.unique());
-            ASSERT(false != X);
+            ASSERT(X);
             ASSERT(p == X.operator->());
             ASSERT(p == &X.operator*());
             ASSERT(p == &X.operator[](0));
@@ -8960,6 +9412,7 @@ int main(int argc, char *argv[])
             ASSERT(1 == A.use_count());
         }
       } break;
+
       case -1: {
         // --------------------------------------------------------------------
         // PERFORMANCE TEST

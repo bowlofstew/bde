@@ -38,9 +38,9 @@ static void aSsErT(bool b, const char *s, int i)
 
 # define ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
 
-//=========================================================================
+//=============================================================================
 //                       STANDARD BDE TEST DRIVER MACROS
-//-------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
 #define LOOP2_ASSERT BSLS_BSLTESTUTIL_LOOP2_ASSERT
 #define LOOP3_ASSERT BSLS_BSLTESTUTIL_LOOP3_ASSERT
@@ -62,7 +62,7 @@ static void aSsErT(bool b, const char *s, int i)
 //                  GLOBAL HELPER MACROS FOR TESTING
 //-----------------------------------------------------------------------------
 
-// The rules defining a null pointer constatnt were tightend by a C++ core
+// The rules defining a null pointer constant were tightened by a C++ core
 // language issue after C++11 was published, so that arbitrary integer constant
 // expressions with the value 0 are no longer null pointer constants; only
 // integer literals with the value zero, and literals of type 'std::nullptr_t',

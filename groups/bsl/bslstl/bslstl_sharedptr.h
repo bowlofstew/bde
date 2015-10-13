@@ -46,10 +46,10 @@ BSLS_IDENT("$Id$ $CSID$")
 //
 // A weak pointer can be constructed from another weak pointer or a
 // 'bsl::shared_ptr'.  To access the shared object referenced by a weak pointer
-// clients must first obtain a shared pointer to that object using the
-// 'acquireSharedPtr' method.  If the shared object has been destroyed (as
-// indicated by the 'expired' method), then 'acquireSharedPtr' returns a shared
-// pointer in the default constructed (empty) state.
+// clients must first obtain a shared pointer to that object using the 'lock'
+// method.  If the shared object has been destroyed (as indicated by the
+// 'expired' method), then 'lock' returns a shared pointer in the default
+// constructed (empty) state.
 //
 // This component also provides a functor, 'bslstl::SharedPtrNilDeleter', which
 // may used to create a shared pointer that takes no action when the last
@@ -59,10 +59,10 @@ BSLS_IDENT("$Id$ $CSID$")
 // provides several functions that are frequently used with shared pointers.
 //
 //
-///Thread-Safety
+///Thread Safety
 ///-------------
-// This section qualifies the thread-safety of 'bsl::shared_ptr' objects and
-// 'bsl::weak_ptr' objects themselves rather than the thread-safety of the
+// This section qualifies the thread safety of 'bsl::shared_ptr' objects and
+// 'bsl::weak_ptr' objects themselves rather than the thread safety of the
 // objects being referenced.
 //
 // It is safe to access or modify two distinct 'shared_ptr' (or
@@ -599,8 +599,8 @@ BSLS_IDENT("$Id$ $CSID$")
 // The following examples demonstrate various features and uses of shared
 // pointers.
 //
-///Example 1 - Basic Usage
-///- - - - - - - - - - - -
+///Example 1: Basic Usage
+/// - - - - - - - - - - -
 // The following example demonstrates the creation of a shared pointer.  First,
 // we declare the type of object that we wish to manage:
 //..
@@ -672,8 +672,8 @@ BSLS_IDENT("$Id$ $CSID$")
 // The following examples demonstrate the use of custom deleters with shared
 // pointers.
 //
-///Example 2 - Nil deleters
-///  -  -  -  -  -  -  -  -
+///Example 2: Nil Deleters
+/// -  -  -  -  -  -  -  -
 // There are cases when an interface calls for an object to be passed as a
 // shared pointer, but the object being passed is not owned by the caller
 // (e.g., a pointer to a static variable).  In these cases, it is possible to
@@ -756,8 +756,8 @@ BSLS_IDENT("$Id$ $CSID$")
 //  }
 //..
 //
-///Example 3 - Basic Weak Pointer Usage
-/// - - - - - - - - - - - - - - - - - -
+///Example 3: Basic Weak Pointer Usage
+///- - - - - - - - - - - - - - - - - -
 // This example illustrates the basic syntax needed to create and use a
 // 'bsl::weak_ptr'.  Suppose that we want to construct a weak pointer that
 // refers to an 'int' managed by a shared pointer.  Next we define the shared
@@ -777,7 +777,7 @@ BSLS_IDENT("$Id$ $CSID$")
 // referenced.  To access and manipulate the 'int' from the weak pointer, we
 // have to obtain a shared pointer from it:
 //..
-//  bsl::shared_ptr<int> intPtr2 = intWeakPtr.acquireSharedPtr();
+//  bsl::shared_ptr<int> intPtr2 = intWeakPtr.lock();
 //  assert(intPtr2);
 //  assert(10 == *intPtr2);
 //
@@ -810,10 +810,11 @@ BSLS_IDENT("$Id$ $CSID$")
 //  intPtr.reset();
 //  intPtr2.reset();
 //  assert(intWeakPtr2.expired());
-//  assert(!intWeakPtr2.acquireSharedPtr());
+//  assert(!intWeakPtr2.lock());
 //..
-// Example 4 - Breaking cyclical dependencies
-//- - - - - - - - - - - - - - - - - - - - - -
+//
+///Example 4: Breaking Cyclical Dependencies
+///- - - - - - - - - - - - - - - - - - - - -
 // Weak pointers are frequently used to break cyclical dependencies between
 // objects that store references to each other via a shared pointer.  Consider
 // for example a simplified news alert system that sends news alerts to users
@@ -875,7 +876,7 @@ BSLS_IDENT("$Id$ $CSID$")
 //
 // We can break this cyclical dependency we define a modified alert class
 // 'ModifiedAlert' that stores a weak pointer to a 'ModifiedUser' object.
-// Below is the definition for the 'ModifiedUser' class which is identical to
+// Below is the definition for the 'ModifiedUser' class that is identical to
 // the 'User' class, the only difference being that it stores shared pointer to
 // 'ModifiedAlert's instead of 'Alert's:
 //..
@@ -930,8 +931,8 @@ BSLS_IDENT("$Id$ $CSID$")
 //  };
 //..
 //
-// Usage example 5 - Caching example
-// - - - - - - - - - - - - - - - - -
+///Example 5: Caching
+/// - - - - - - - - -
 // Suppose we want to implement a peer to peer file sharing system that allows
 // users to search for files that match specific keywords.  A simplistic
 // version of such a system with code not relevant to the usage example elided
@@ -1040,10 +1041,10 @@ BSLS_IDENT("$Id$ $CSID$")
 //           ++iter) {
 //..
 // First we check if the peer is still connected by acquiring a shared pointer
-// to the peer.  If the acquire operation succeeds then we can send the peer a
+// to the peer.  If the acquire operation succeeds, then we can send the peer a
 // request to send back the file best matching the specified keywords:
 //..
-//          bsl::shared_ptr<Peer> peerSharedPtr = iter->acquireSharedPtr();
+//          bsl::shared_ptr<Peer> peerSharedPtr = iter->lock();
 //          if (peerSharedPtr) {
 //
 //              // Search the peer for file best matching the specified
@@ -1059,7 +1060,7 @@ BSLS_IDENT("$Id$ $CSID$")
 //..
 //  void download(const SearchResult& result)
 //  {
-//      bsl::shared_ptr<Peer> peerSharedPtr = result.peer().acquireSharedPtr();
+//      bsl::shared_ptr<Peer> peerSharedPtr = result.peer().lock();
 //      if (peerSharedPtr) {
 //          // Download the result.filename() file from peer knowing that
 //          // the peer is still connected.
@@ -1154,6 +1155,10 @@ BSL_OVERRIDES_STD mode"
 #include <bslmf_haspointersemantics.h>
 #endif
 
+#ifndef INCLUDED_BSLMF_INTEGRALCONSTANT
+#include <bslmf_integralconstant.h>
+#endif
+
 #ifndef INCLUDED_BSLMF_ISBITWISEMOVEABLE
 #include <bslmf_isbitwisemoveable.h>
 #endif
@@ -1218,6 +1223,16 @@ BSL_OVERRIDES_STD mode"
 #define INCLUDED_STDDEF_H
 #endif
 
+namespace BloombergLP {
+namespace bslstl {
+    struct SharedPtr_ImpUtil;
+        // Forward declaration of 'SharedPtr_ImpUtil'. This is needed because
+        // this struct is a friend of 'enable_shared_from_this' in the 'bsl'
+        // namespace.
+}  // close package namespace
+}  // close enterprise namespace
+
+
 namespace bsl {
 
 template <class ELEMENT_TYPE>
@@ -1225,9 +1240,6 @@ class shared_ptr;
 
 template <class ELEMENT_TYPE>
 class weak_ptr;
-
-template <class ELEMENT_TYPE>
-struct hash<shared_ptr<ELEMENT_TYPE> >;
 
                         // ================
                         // class shared_ptr
@@ -1273,6 +1285,8 @@ class shared_ptr {
     // FRIENDS
     template <class COMPATIBLE_TYPE>
     friend class shared_ptr;
+
+    friend struct BloombergLP::bslstl::SharedPtr_ImpUtil;
 
   private:
     // PRIVATE CLASS METHODS
@@ -1334,10 +1348,14 @@ class shared_ptr {
         // released, the object pointed to by the managed pointer will be
         // destroyed by a call to 'delete ptr'.  If 'COMPATIBLE_TYPE *' is not
         // implicitly convertible to 'ELEMENT_TYPE *', then a compiler
-        // diagnostic will be emitted indicating the error.  If 'ptr' is 0, an
-        // empty shared pointer is created and no memory is allocated.  If an
-        // exception is thrown allocating storage for the representation, then
-        // 'delete ptr' will be called.
+        // diagnostic will be emitted indicating the error.  If 'ptr' is 0,
+        // then this shared pointer will still allocate an internal
+        // representation to share ownership of that empty state, which will be
+        // reclaimed when the last reference is destroyed.  If an exception is
+        // thrown allocating storage for the representation, then 'delete ptr'
+        // will be called.  Note that if 'ptr' is a null-pointer constant, the
+        // compiler will actually select the 'shared_ptr(bsl::nullptr_t)'
+        // constructor, resulting in an empty shared pointer.
 
     template <class COMPATIBLE_TYPE>
     shared_ptr(COMPATIBLE_TYPE               *ptr,
@@ -1345,15 +1363,20 @@ class shared_ptr {
         // Create a shared pointer that manages a modifiable object of
         // (template parameter) type 'COMPATIBLE_TYPE' and refers to the
         // specified 'ptr' cast to a pointer to the (template parameter) type
-        // 'ELEMENT_TYPE'.  If the specified 'basicAllocator' is not 0 then
+        // 'ELEMENT_TYPE'.  If the specified 'basicAllocator' is not 0, then
         // 'basicAllocator' is used to allocate and deallocate the internal
         // representation of the shared pointer and to destroy the shared
         // object when all references have been released; otherwise, the
         // currently installed default allocator is used.  If
         // 'COMPATIBLE_TYPE *' is not implicitly convertible to
         // 'ELEMENT_TYPE *', then a compiler diagnostic will be emitted
-        // indicating the error.  If 'ptr' is 0, an empty shared pointer is
-        // created and 'basicAllocator' is ignored.  Note that if
+        // indicating the error.  If 'ptr' is 0, then this shared pointer will
+        // still allocate an internal representation to share ownership of that
+        // empty state, which will be reclaimed when the last reference is
+        // destroyed.  Note that if 'ptr' is a null-pointer constant, the
+        // compiler will actually select the
+        // 'shared_ptr(bsl::nullptr_t, BloombergLP::bslma::Allocator *)'
+        // constructor, resulting in an empty shared pointer.  Note that if
         // 'basicAllocator' is a pointer to a class derived from
         // 'bslma::Allocator', the compiler will actually select the following
         // (more general) constructor that has the same behavior:
@@ -1436,7 +1459,7 @@ class shared_ptr {
         // emitted indicating the error.  If 'ptr' is 0, then the null pointer
         // will be reference counted, and 'deleter(ptr)' will be called when
         // the last reference is destroyed.  If an exception is thrown when
-        // allocating storage for the internal representation then
+        // allocating storage for the internal representation, then
         // 'deleter(ptr)' will be called.  The behavior is undefined unless the
         // constructor making a copy of 'deleter' does not throw an exception.
 
@@ -1515,7 +1538,7 @@ class shared_ptr {
         // satisfy the Allocator requirements of the C++ standard (C++11
         // 17.6.3.5, [allocator.requirements]).  The specified
         // 'nullPointerLiteral' is not used.  If an exception is thrown when
-        // allocating storage for the internal representation then
+        // allocating storage for the internal representation, then
         // 'deleter((ELEMENT_TYPE *)0)' will be called.  The behavior is
         // undefined unless 'deleter' can be called with a null pointer, and
         // unless the constructor making a copy of 'deleter' does not throw an
@@ -1591,8 +1614,8 @@ class shared_ptr {
         // type.  Also note that if 'source' is empty, then an empty shared
         // pointer is created, even if 'object' is not null (in which case this
         // empty shared pointer will refer to the same object as 'object').
-        // Likewise note that if 'object' is null and 'source' is not empty,
-        // then a reference-counted null pointer alias will be created.
+        // Also note that if 'object' is null and 'source' is not empty, then a
+        // reference-counted null pointer alias will be created.
 
     template <class COMPATIBLE_TYPE>
     shared_ptr(const shared_ptr<COMPATIBLE_TYPE>& other);
@@ -1793,8 +1816,8 @@ class shared_ptr {
         // have the same type.  Also note that if 'source' is empty, then this
         // shared pointer will be reset to an empty state, even if 'ptr' is not
         // null (in which case this empty shared pointer will refer to the same
-        // object as 'ptr').  Likewise note that if 'ptr' is null and 'source'
-        // is not empty, then this shared pointer will be reset to a
+        // object as 'ptr').  Also note that if 'ptr' is null and 'source' is
+        // not empty, then this shared pointer will be reset to a
         // (reference-counted) null pointer alias.  Further note that the
         // behavior of this method is the same as 'loadAlias(source, ptr)'.
 
@@ -2045,8 +2068,8 @@ class shared_ptr {
         // not necessarily have the same type.  Also note that if 'source' is
         // empty, then this shared pointer will be reset to an empty state,
         // even if 'object' is not null (in which case this empty shared
-        // pointer will refer to the same object as 'object').  Likewise note
-        // that if 'object' is null and 'source' is not empty, then this shared
+        // pointer will refer to the same object as 'object').  Also note that
+        // if 'object' is null and 'source' is not empty, then this shared
         // pointer will be reset to a (reference-counted) null pointer alias.
         // Also note that this function is logically equivalent to:
         //..
@@ -2138,7 +2161,7 @@ class shared_ptr {
 
     BloombergLP::bslma::ManagedPtr<ELEMENT_TYPE> managedPtr() const;
         // Return a managed pointer that refers to the same object as this
-        // shared pointer and which has a deleter that decrements the reference
+        // shared pointer and that has a deleter that decrements the reference
         // count for the shared object.
 
     BloombergLP::bslma::SharedPtrRep *rep() const;
@@ -2294,6 +2317,12 @@ operator<<(native_std::basic_ostream<CHAR_TYPE, CHAR_TRAITS>& stream,
     // to the modifiable 'stream'.
 
 // ASPECTS
+template <class HASHALG, class ELEMENT_TYPE>
+void hashAppend(HASHALG& hashAlg, const shared_ptr<ELEMENT_TYPE>& input);
+    // Pass the address of the object referred to by the specified 'input'
+    // shared pointer to the specified 'hashAlg' hashing algorithm of (template
+    // parameter) type 'HASHALG'.
+
 template <class ELEMENT_TYPE>
 void swap(shared_ptr<ELEMENT_TYPE>& a, shared_ptr<ELEMENT_TYPE>& b);
     // Efficiently exchange the states of the specified 'a' and 'b' shared
@@ -3023,6 +3052,8 @@ class weak_ptr {
         // members while constructing a weak pointer from a weak pointer of a
         // different type.
 
+    friend struct BloombergLP::bslstl::SharedPtr_ImpUtil;
+
   public:
     // TYPES
     typedef ELEMENT_TYPE element_type;
@@ -3130,6 +3161,71 @@ class weak_ptr {
 
 };
 
+                    //==============================
+                    // class enable_shared_from_this
+                    //==============================
+template<class ELEMENT_TYPE>
+class enable_shared_from_this {
+    // This class allows an object that is currently managed by a 'shared_ptr'
+    // to safely generate a copy of the managing 'shared_ptr' object.
+    // Inheriting from 'enable_shared_from_this<ELEMENT_TYPE>' provides the
+    // (template parameter) 'ELEMENT_TYPE' type with a member function
+    // 'share_from_this'. If an object of type 'ELEMENT_TYPE' is managed by a
+    // 'shared_ptr' then calling 'shared_from_this' will return
+    // a 'shared_ptr<ELEMENT_TYPE>' that shares ownership of that object.  It
+    // is undefined behavior to call 'shared_from_this' on an object unless
+    // that object is managed by a 'shared_ptr'.
+    //
+    // The intended use of 'enable_shared_from_this' is that the templated type
+    // parameter 'ELEMENT_TYPE' inherits directly from the
+    // 'enable_shared_from_this' class. In the case of multiple inheritance,
+    // only one of the base classes should inherit from the
+    // 'enable_shared_from_this' class.  If multiple base classes inherit from
+    // 'enable_shared_from_this', then there will be ambiguous calls to the
+    // 'shared_from_this' function.
+
+    friend struct BloombergLP::bslstl::SharedPtr_ImpUtil;
+        // Allows 'shared_ptr' to initialize 'd_weakThis' when it detects an
+        // 'enable_shared_from_this' base class.
+
+  private:
+    // DATA
+    mutable bsl::weak_ptr<ELEMENT_TYPE> d_weakThis;
+
+  protected:
+
+    // CREATORS
+    enable_shared_from_this();
+        // Create an 'enable_shared_from_this' object that is not owned by
+        // any 'shared_ptr' object.
+
+    enable_shared_from_this(const enable_shared_from_this& unused);
+        // Create an 'enable_shared_from_this' object that is not owned by
+        // any 'shared_ptr' object.
+
+    ~enable_shared_from_this();
+        // Destroy this 'enable_shared_form_this'.
+
+    // MANIPULATORS
+    enable_shared_from_this& operator=(
+                                const enable_shared_from_this& rhs);
+        // Return '*this'. This object is unchanged.
+
+  public:
+    // MANIPULATORS
+    bsl::shared_ptr<ELEMENT_TYPE> shared_from_this();
+        // Return a 'shared_ptr<ELEMENT_TYPE>' that shares ownership with
+        // the 'shared_ptr' object that owns '*this'.  The behavior is
+        // undefined unless '*this' is currently managed by a 'shared_ptr'
+        // object.
+
+    bsl::shared_ptr<const ELEMENT_TYPE> shared_from_this() const;
+        // Return a 'shared_ptr<ELEMENT_TYPE>' that shares ownership with
+        // the 'shared_ptr' object that owns '*this'.  The behavior is
+        // undefined unless '*this' is currently managed by a 'shared_ptr'
+        // object.
+};
+
 // ASPECTS
 template <class ELEMENT_TYPE>
 void swap(weak_ptr<ELEMENT_TYPE>& a, weak_ptr<ELEMENT_TYPE>& b);
@@ -3141,45 +3237,38 @@ void swap(weak_ptr<ELEMENT_TYPE>& a, weak_ptr<ELEMENT_TYPE>& b);
                         // class hash specialization
                         // =========================
 
-template <class ELEMENT_TYPE>
-struct hash<shared_ptr<ELEMENT_TYPE> > {
-    // Specialization of 'hash' for shared pointers.
+// A partial specialization of 'bsl::hash' is no longer necessary, as the
+// primary template has the correct behavior once 'hashAppend' is defined.
 
-    // STANDARD TYPEDEFS
-    typedef shared_ptr<ELEMENT_TYPE> argument_type;
-    typedef size_t                   result_type;
-
-    //! hash() = default;
-        // Create a 'hash' object.
-
-    //! hash(const hash& original) = default;
-        // Create a 'hash' object.  Note that as 'hash' is an empty (stateless)
-        // type, this operation will have no observable effect.
-
-    //! ~hash() = default;
-        // Destroy this object.
-
-    // MANIPULATORS
-    //! hash& operator=(const hash& rhs) = default;
-        // Assign to this object the value of the specified 'rhs' object, and
-        // return a reference providing modifiable access to this object.  Note
-        // that as 'hash' is an empty (stateless) type, this operation will
-        // have no observable effect.
-
-    // ACCESSORS
-    size_t operator()(const shared_ptr<ELEMENT_TYPE>& x) const;
-        // Return a hash value computed using the specified 'x'.  Two
-        // 'shared_ptr' objects will have the same hash value if they refer to
-        // the same object, whether or not they share ownership of the same
-        // object.  Likewise, two shared pointers that share ownership of the
-        // same object may have different hash values if they alias that object
-        // through distinct pointer values.
-};
-
-}  // close 'bsl' namespace
+}  // close namespace bsl
 
 namespace BloombergLP {
 namespace bslstl {
+
+                            //==================
+                            // SharedPtr_ImpUtil
+                            //==================
+struct SharedPtr_ImpUtil {
+    // This struct should be used by only 'shared_ptr' constructors. Its
+    // purpose is to enable shared_ptr constructors to determine the if the
+    // templated type parameters 'COMPATIBLE_TYPE' or 'ELEMENT_TYPE' have an
+    // 'enable_shared_from_this' base.
+
+    template<class SHARED_TYPE, class ENABLE_TYPE>
+    static void setEnableSharedFromThisSelfReference(
+                   bsl::shared_ptr<SHARED_TYPE>* sp,
+                   const bsl::enable_shared_from_this<ENABLE_TYPE>* shareable);
+        // Set the 'd_weakThis' data member of the specified '*sharable' to the
+        // specified '*sp'.  This function shall be called only by 'shared_ptr'
+        // constructors that expect to construct shared pointers from classes
+        // that derive from 'enabled_shared_from_this'.
+
+    static void setEnableSharedFromThisSelfReference(const void *,
+                                                     const void *);
+        // Do nothing.  This overload is selected when a the 'SHARED_TYPE'
+        // template type parameter of 'shared_ptr<SHARED_TYPE>' does not
+        // derive from 'enable_shared_from_this'.
+};
 
                             // ====================
                             // struct SharedPtrUtil
@@ -3191,7 +3280,7 @@ struct SharedPtrUtil {
     // CLASS METHODS
     static
     bsl::shared_ptr<char>
-    createInplaceUninitializedBuffer(size_t       bufferSize,
+    createInplaceUninitializedBuffer(size_t            bufferSize,
                                      bslma::Allocator *basicAllocator = 0);
         // Return a shared pointer with an in-place representation holding a
         // newly-created uninitialized buffer of the specified 'bufferSize' (in
@@ -3238,7 +3327,7 @@ struct SharedPtrUtil {
         // release the shared reference to that object, and destroy it using
         // its associated deleter if that shared pointer held the last shared
         // reference to that object.  If
-        // '0 == dynamic_cast<TARGET*>(source.get())' then '*target' shall be
+        // '0 == dynamic_cast<TARGET*>(source.get())', then '*target' shall be
         // reset to an empty state that does not refer to an object.  Note that
         // a compiler diagnostic will be emitted indicating an error unless
         // 'dynamic_cast<TARGET *>(source.get())' is a valid expression.
@@ -3250,8 +3339,8 @@ struct SharedPtrUtil {
         // same object as the specified 'source' shared pointer to the
         // (template parameter) 'SOURCE' type, and referring to
         // 'dynamic_cast<TARGET *>(source.get())'.  If that would return a
-        // shared pointer referring to nothing ('0 == get()') then instead
-        // return an (empty) default constructed shared pointer. Note that a
+        // shared pointer referring to nothing ('0 == get()'), then instead
+        // return an (empty) default constructed shared pointer.  Note that a
         // compiler diagnostic will be emitted indicating an error unless
         // 'dynamic_cast<TARGET *>(source.get())' is a valid expression..
 
@@ -3332,9 +3421,11 @@ class SharedPtr_RepProctor {
         // specified 'rep' (if non-zero).
 
     ~SharedPtr_RepProctor();
-        // Destroy this 'SharedPtr_RepProctor', and release ownership of the
+        // Destroy this 'SharedPtr_RepProctor', and dispose of (deallocate) the
         // 'bslma::SharedPtrRep' it manages (if any).  If no such object is
-        // currently being managed, this method has no effect.
+        // currently being managed, this method has no effect.  Note that the
+        // destructor of the 'bslma::SharedPtrRep' will not be called as the
+        // reference count will not be decremented.
 
     // MANIPULATORS
     void release();
@@ -3351,6 +3442,56 @@ class SharedPtr_RepProctor {
 // ============================================================================
 
 namespace bsl {
+                    //------------------------------
+                    // class enable_shared_from_this
+                    //------------------------------
+// CREATORS
+template<class ELEMENT_TYPE>
+inline // constexpr
+enable_shared_from_this<ELEMENT_TYPE>::enable_shared_from_this() // noexcept
+: d_weakThis()
+{
+}
+
+template<class ELEMENT_TYPE>
+inline
+enable_shared_from_this<ELEMENT_TYPE>::enable_shared_from_this(
+                                    const enable_shared_from_this&) // noexcept
+: d_weakThis()
+{
+}
+
+template<class ELEMENT_TYPE>
+inline
+enable_shared_from_this<ELEMENT_TYPE>::~enable_shared_from_this()
+{
+}
+
+// MANIPULATORS
+template<class ELEMENT_TYPE>
+inline
+enable_shared_from_this<ELEMENT_TYPE>&
+enable_shared_from_this<ELEMENT_TYPE>::operator=(
+                                                const enable_shared_from_this&)
+{
+    return *this;
+}
+
+template<class ELEMENT_TYPE>
+inline
+shared_ptr<ELEMENT_TYPE>
+enable_shared_from_this<ELEMENT_TYPE>::shared_from_this()
+{
+    return shared_ptr<ELEMENT_TYPE>(d_weakThis);
+}
+
+template<class ELEMENT_TYPE>
+inline
+shared_ptr<const ELEMENT_TYPE>
+enable_shared_from_this<ELEMENT_TYPE>::shared_from_this() const
+{
+    return shared_ptr<const ELEMENT_TYPE>(d_weakThis);
+}
 
                             // ----------------
                             // class shared_ptr
@@ -3428,6 +3569,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(COMPATIBLE_TYPE *ptr)
                                                        Deleter>       RepMaker;
 
     d_rep_p = RepMaker::makeOutofplaceRep(ptr, Deleter(), 0);
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3444,6 +3587,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(
                                                                       RepMaker;
 
     d_rep_p = RepMaker::makeOutofplaceRep(ptr, basicAllocator, basicAllocator);
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3453,6 +3598,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(ELEMENT_TYPE                     *ptr,
 : d_ptr_p(ptr)
 , d_rep_p(rep)
 {
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3463,6 +3610,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(COMPATIBLE_TYPE *ptr,
 : d_ptr_p(ptr)
 , d_rep_p(makeInternalRep(ptr, dispatch, dispatch))
 {
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3478,6 +3627,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(
                                                        DELETER> RepMaker;
 
     d_rep_p = RepMaker::makeOutofplaceRep(ptr, deleter, basicAllocator);
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3508,6 +3659,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(COMPATIBLE_TYPE *ptr,
                                                         ALLOCATOR> RepMaker;
 
     d_rep_p = RepMaker::makeOutofplaceRep(ptr, deleter, basicAllocator);
+    BloombergLP::bslstl::SharedPtr_ImpUtil::
+                               setEnableSharedFromThisSelfReference(this, ptr);
 }
 
 template <class ELEMENT_TYPE>
@@ -3584,7 +3737,7 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(
 , d_rep_p(0)
 {
     typedef BloombergLP::bslma::SharedPtrInplaceRep<
-                     BloombergLP::bslma::ManagedPtr<ELEMENT_TYPE> > Rep;
+                            BloombergLP::bslma::ManagedPtr<ELEMENT_TYPE> > Rep;
 
     if (d_ptr_p) {
         if (&BloombergLP::bslma::SharedPtrRep::managedPtrDeleter ==
@@ -3599,6 +3752,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(
             (*rep->ptr()) = managedPtr;
             d_rep_p = rep;
         }
+        BloombergLP::bslstl::SharedPtr_ImpUtil::
+                           setEnableSharedFromThisSelfReference(this, d_ptr_p);
     }
 }
 
@@ -3619,6 +3774,8 @@ shared_ptr<ELEMENT_TYPE>::shared_ptr(
         Rep *rep = new (*basicAllocator) Rep(basicAllocator);
         (*rep->ptr()) = autoPtr;
         d_rep_p = rep;
+        BloombergLP::bslstl::SharedPtr_ImpUtil::
+                           setEnableSharedFromThisSelfReference(this, d_ptr_p);
     }
 }
 
@@ -3862,7 +4019,7 @@ shared_ptr<ELEMENT_TYPE>::createInplace(
 
     basicAllocator = BloombergLP::bslma::Default::allocator(basicAllocator);
     Rep *rep = new (*basicAllocator) Rep(basicAllocator,
-                              BloombergLP::bsls::Util::forward<ARGS>(args)...);
+                                  BSLS_COMPILERFEATURES_FORWARD(ARGS,args)...);
     SelfType(rep->ptr(), rep).swap(*this);
 }
 # else
@@ -4551,22 +4708,41 @@ long weak_ptr<ELEMENT_TYPE>::use_count() const
 }
 
 
-                        // ---------------------------
-                        // struct hash<shared_ptr<T> >
-                        // ---------------------------
-
-template <class ELEMENT_TYPE>
-inline
-size_t hash<shared_ptr<ELEMENT_TYPE> >::operator()(
-                                       const shared_ptr<ELEMENT_TYPE>& x) const
-{
-    return ::BloombergLP::bslalg::HashUtil::computeHash(x.get());
-}
-
-}  // close 'bsl' namespace
+}  // close namespace bsl
 
 namespace BloombergLP {
 namespace bslstl {
+
+                            // -----------------
+                            // SharedPtr_ImpUtil
+                            // -----------------
+
+template <class SHARED_TYPE, class ENABLE_TYPE>
+inline
+void SharedPtr_ImpUtil::setEnableSharedFromThisSelfReference(
+                    bsl::shared_ptr<SHARED_TYPE>                    *sp,
+                    const bsl::enable_shared_from_this<ENABLE_TYPE> *shareable)
+{
+    BSLS_ASSERT_OPT(0 != sp);
+
+    if (shareable) {
+        shareable->d_weakThis.d_ptr_p =
+                                  const_cast<ENABLE_TYPE      *>(
+                                 static_cast<ENABLE_TYPE const*>(sp->d_ptr_p));
+        if (shareable->d_weakThis.d_rep_p) {
+            shareable->d_weakThis.d_rep_p->releaseWeakRef();
+        }
+        shareable->d_weakThis.d_rep_p = sp->d_rep_p;
+        shareable->d_weakThis.d_rep_p->acquireWeakRef();
+    }
+}
+
+inline
+void bslstl::SharedPtr_ImpUtil::setEnableSharedFromThisSelfReference(
+                                                                  const void *,
+                                                                  const void *)
+{
+}
 
                             // --------------------
                             // struct SharedPtrUtil
@@ -4669,7 +4845,7 @@ inline
 SharedPtr_RepProctor::~SharedPtr_RepProctor()
 {
     if (d_rep_p) {
-        d_rep_p->releaseRef();
+        d_rep_p->disposeRep();
     }
 }
 
@@ -4826,6 +5002,13 @@ bsl::operator<<(native_std::basic_ostream<CHAR_TYPE, CHAR_TRAITS>& stream,
 }
 
 // ASPECTS
+template <class HASHALG, class ELEMENT_TYPE>
+inline
+void bsl::hashAppend(HASHALG& hashAlg, const shared_ptr<ELEMENT_TYPE>& input)
+{
+    hashAppend(hashAlg, input.get());
+}
+
 template <class ELEMENT_TYPE>
 inline
 void bsl::swap(shared_ptr<ELEMENT_TYPE>& a, shared_ptr<ELEMENT_TYPE>& b)
@@ -4842,6 +5025,7 @@ void bsl::swap(weak_ptr<ELEMENT_TYPE>& a, weak_ptr<ELEMENT_TYPE>& b)
 
 // STANDARD FREE FUNCTIONS
 template<class DELETER, class ELEMENT_TYPE>
+inline
 DELETER *bsl::get_deleter(const shared_ptr<ELEMENT_TYPE>& p)
 {
     BloombergLP::bslma::SharedPtrRep *rep = p.rep();
@@ -4850,6 +5034,7 @@ DELETER *bsl::get_deleter(const shared_ptr<ELEMENT_TYPE>& p)
 
 // STANDARD CAST FUNCTIONS
 template<class TO_TYPE, class FROM_TYPE>
+inline
 bsl::shared_ptr<TO_TYPE>
 bsl::const_pointer_cast(const shared_ptr<FROM_TYPE>& source)
 {
@@ -4857,6 +5042,7 @@ bsl::const_pointer_cast(const shared_ptr<FROM_TYPE>& source)
 }
 
 template<class TO_TYPE, class FROM_TYPE>
+inline
 bsl::shared_ptr<TO_TYPE>
 bsl::dynamic_pointer_cast(const shared_ptr<FROM_TYPE>& source)
 {
@@ -4868,6 +5054,7 @@ bsl::dynamic_pointer_cast(const shared_ptr<FROM_TYPE>& source)
 }
 
 template<class TO_TYPE, class FROM_TYPE>
+inline
 bsl::shared_ptr<TO_TYPE>
 bsl::static_pointer_cast(const shared_ptr<FROM_TYPE>& source)
 {
@@ -4889,46 +5076,32 @@ bsl::allocate_shared(ALLOC a, ARGS&&... args)
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(a);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(
-                                           a,
-                                           rep_p->ptr(),
-                              BloombergLP::bsls::Util::forward<ARGS>(args)...);
+                                  a,
+                                  rep_p->ptr(),
+                                  BSLS_COMPILERFEATURES_FORWARD(ARGS,args)...);
     proctor.release();
     return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
 }
 
 template<class ELEMENT_TYPE, class ALLOC, class... ARGS>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::allocate_shared(ALLOC *a, ARGS&&... args)
 {
-    typedef BloombergLP::bslma::SharedPtrInplaceRep<ELEMENT_TYPE> Rep;
-    BloombergLP::bslma::Allocator *basicAllocator =
-                                     BloombergLP::bslma::Default::allocator(a);
-    Rep *rep_p = new (*basicAllocator) Rep(basicAllocator);
-    BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
-    BloombergLP::bslalg::ScalarPrimitives::construct(
-                                            rep_p->ptr(),
-                               BloombergLP::bsls::Util::forward<ARGS>(args)...,
-                                            a);
-    proctor.release();
-    return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                  bsl::allocator<ELEMENT_TYPE>(a),
+                                  BSLS_COMPILERFEATURES_FORWARD(ARGS,args)...);
 }
 
 template<class ELEMENT_TYPE, class... ARGS>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::make_shared(ARGS&&... args)
 {
-    typedef BloombergLP::bslma::SharedPtrInplaceRep<ELEMENT_TYPE> Rep;
-    BloombergLP::bslma::Allocator *basicAllocator =
-                                      BloombergLP::bslma::Default::allocator();
-
-    Rep *rep_p = new (*basicAllocator) Rep(basicAllocator);
-    BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
-    BloombergLP::bslalg::ScalarPrimitives::construct(
-                                            rep_p->ptr(),
-                               BloombergLP::bsls::Util::forward<ARGS>(args)...,
-                                            basicAllocator);
-    proctor.release();
-    return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                  BloombergLP::bslma::Default::allocator(),
+                                  BSLS_COMPILERFEATURES_FORWARD(ARGS,args)...);
 }
 # else
 template<class ELEMENT_TYPE, class ALLOC, class... ARGS>
@@ -4938,42 +5111,30 @@ bsl::allocate_shared(ALLOC a, const ARGS&... args)
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(a);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
+
     bsl::allocator_traits<ALLOC>::construct(a, rep_p->ptr(), args...);
     proctor.release();
     return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
 }
 
 template<class ELEMENT_TYPE, class ALLOC, class... ARGS>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::allocate_shared(ALLOC *a, const ARGS&... args)
 {
-    typedef BloombergLP::bslma::SharedPtrInplaceRep<ELEMENT_TYPE> Rep;
-    BloombergLP::bslma::Allocator *basicAllocator =
-                                     BloombergLP::bslma::Default::allocator(a);
-    Rep *rep_p = new (*basicAllocator) Rep(basicAllocator);
-    BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
-    BloombergLP::bslalg::ScalarPrimitives::construct(rep_p->ptr(),
-                                                     args...,
-                                                     a);
-    proctor.release();
-    return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              args...);
 }
 
 template<class ELEMENT_TYPE, class... ARGS>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::make_shared(const ARGS&... args)
 {
-    typedef BloombergLP::bslma::SharedPtrInplaceRep<ELEMENT_TYPE> Rep;
-    BloombergLP::bslma::Allocator *basicAllocator =
-                                      BloombergLP::bslma::Default::allocator();
-
-    Rep *rep_p = new (*basicAllocator) Rep(basicAllocator);
-    BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
-    BloombergLP::bslalg::ScalarPrimitives::construct(rep_p->ptr(),
-                                                     args...,
-                                                     basicAllocator);
-    proctor.release();
-    return shared_ptr<ELEMENT_TYPE>(rep_p->ptr(), rep_p);
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                              BloombergLP::bslma::Default::allocator(),
+                              args...);
 }
 # endif  // BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
 #else
@@ -4989,6 +5150,7 @@ bsl::allocate_shared(ALLOC basicAllocator)
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator, rep_p->ptr());
     proctor.release();
@@ -5007,6 +5169,7 @@ bsl::allocate_shared(ALLOC basicAllocator, const A1& a1)
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator, rep_p->ptr(), a1);
     proctor.release();
@@ -5025,6 +5188,7 @@ bsl::allocate_shared(ALLOC basicAllocator, const A1& a1, const A2& a2)
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5041,12 +5205,15 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                                      const A1& a1, const A2& a2, const A3& a3)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5065,12 +5232,16 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5090,13 +5261,17 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4,
+                     const A5& a5)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5117,13 +5292,18 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4,
+                     const A5& a5,
+                     const A6& a6)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5145,13 +5325,19 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4,
+                     const A5& a5,
+                     const A6& a6,
+                     const A7& a7)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5174,13 +5360,20 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                       const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                       const A5& a5, const A6& a6, const A7& a7, const A8& a8)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4,
+                     const A5& a5,
+                     const A6& a6,
+                     const A7& a7,
+                     const A8& a8)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5204,14 +5397,21 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9)
+bsl::allocate_shared(ALLOC     basicAllocator,
+                     const A1& a1,
+                     const A2& a2,
+                     const A3& a3,
+                     const A4& a4,
+                     const A5& a5,
+                     const A6& a6,
+                     const A7& a7,
+                     const A8& a8,
+                     const A9& a9)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5237,14 +5437,22 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10)
+bsl::allocate_shared(ALLOC      basicAllocator,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9,
+                     const A10& a10)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5271,14 +5479,23 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11)
+bsl::allocate_shared(ALLOC      basicAllocator,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9,
+                     const A10& a10,
+                     const A11& a11)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5306,15 +5523,24 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12)
+bsl::allocate_shared(ALLOC      basicAllocator,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9,
+                     const A10& a10,
+                     const A11& a11,
+                     const A12& a12)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5343,15 +5569,25 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12, const A13& a13)
+bsl::allocate_shared(ALLOC      basicAllocator,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9,
+                     const A10& a10,
+                     const A11& a11,
+                     const A12& a12,
+                     const A13& a13)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5381,15 +5617,26 @@ typename bsl::enable_if<!bsl::is_pointer<ALLOC>::value,
 #else
 bsl::shared_ptr<ELEMENT_TYPE>
 #endif
-bsl::allocate_shared(ALLOC basicAllocator,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12, const A13& a13, const A14& a14)
+bsl::allocate_shared(ALLOC      basicAllocator,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9,
+                     const A10& a10,
+                     const A11& a11,
+                     const A12& a12,
+                     const A13& a13,
+                     const A14& a14)
 {
     typedef BloombergLP::bslstl::SharedPtrAllocateInplaceRep<ELEMENT_TYPE,
                                                              ALLOC> Rep;
     Rep *rep_p = Rep::makeRep(basicAllocator);
+
     BloombergLP::bslstl::SharedPtr_RepProctor proctor(rep_p);
     bsl::allocator_traits<ALLOC>::construct(basicAllocator,
                                             rep_p->ptr(),
@@ -5412,170 +5659,224 @@ bsl::allocate_shared(ALLOC basicAllocator,
 }
 
 template <class ELEMENT_TYPE, class ALLOC>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::allocate_shared(ALLOC *a)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a));
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a));
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::allocate_shared(ALLOC *a, const A1& a1)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::allocate_shared(ALLOC *a, const A1& a1, const A2& a2)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::allocate_shared(ALLOC *a, const A1& a1, const A2& a2, const A3& a3)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                       const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                       const A5& a5, const A6& a6, const A7& a7, const A8& a8)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9)
+bsl::allocate_shared(ALLOC     *a,
+                     const A1&  a1,
+                     const A2&  a2,
+                     const A3&  a3,
+                     const A4&  a4,
+                     const A5&  a5,
+                     const A6&  a6,
+                     const A7&  a7,
+                     const A8&  a8,
+                     const A9&  a9)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8,
-                                         a9);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8,
+                                              a9);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9,
           class A10>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10)
+bsl::allocate_shared(ALLOC      *a,
+                     const A1&   a1,
+                     const A2&   a2,
+                     const A3&   a3,
+                     const A4&   a4,
+                     const A5&   a5,
+                     const A6&   a6,
+                     const A7&   a7,
+                     const A8&   a8,
+                     const A9&   a9,
+                     const A10&  a10)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8,
-                                         a9,
-                                         a10);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8,
+                                              a9,
+                                              a10);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9,
           class A10, class A11>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11)
+bsl::allocate_shared(ALLOC      *a,
+                     const A1&   a1,
+                     const A2&   a2,
+                     const A3&   a3,
+                     const A4&   a4,
+                     const A5&   a5,
+                     const A6&   a6,
+                     const A7&   a7,
+                     const A8&   a8,
+                     const A9&   a9,
+                     const A10&  a10,
+                     const A11&  a11)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
                                          a1,
                                          a2,
                                          a3,
@@ -5592,122 +5893,157 @@ bsl::allocate_shared(ALLOC *a,
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9,
           class A10, class A11, class A12>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12)
+bsl::allocate_shared(ALLOC      *a,
+                     const A1&   a1,
+                     const A2&   a2,
+                     const A3&   a3,
+                     const A4&   a4,
+                     const A5&   a5,
+                     const A6&   a6,
+                     const A7&   a7,
+                     const A8&   a8,
+                     const A9&   a9,
+                     const A10&  a10,
+                     const A11&  a11,
+                     const A12&  a12)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8,
-                                         a9,
-                                         a10,
-                                         a11,
-                                         a12);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8,
+                                              a9,
+                                              a10,
+                                              a11,
+                                              a12);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9,
           class A10, class A11, class A12, class A13>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12, const A13& a13)
+bsl::allocate_shared(ALLOC      *a,
+                     const A1&   a1,
+                     const A2&   a2,
+                     const A3&   a3,
+                     const A4&   a4,
+                     const A5&   a5,
+                     const A6&   a6,
+                     const A7&   a7,
+                     const A8&   a8,
+                     const A9&   a9,
+                     const A10&  a10,
+                     const A11&  a11,
+                     const A12&  a12,
+                     const A13&  a13)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8,
-                                         a9,
-                                         a10,
-                                         a11,
-                                         a12,
-                                         a13);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8,
+                                              a9,
+                                              a10,
+                                              a11,
+                                              a12,
+                                              a13);
 }
 
 template <class ELEMENT_TYPE, class ALLOC, class A1, class A2, class A3,
           class A4, class A5, class A6, class A7, class A8, class A9,
           class A10, class A11, class A12, class A13, class A14>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::allocate_shared(ALLOC *a,
-                        const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                        const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                        const A9& a9, const A10& a10, const A11& a11,
-                        const A12& a12, const A13& a13, const A14& a14)
+bsl::allocate_shared(ALLOC      *a,
+                     const A1&   a1,
+                     const A2&   a2,
+                     const A3&   a3,
+                     const A4&   a4,
+                     const A5&   a5,
+                     const A6&   a6,
+                     const A7&   a7,
+                     const A8&   a8,
+                     const A9&   a9,
+                     const A10&  a10,
+                     const A11&  a11,
+                     const A12&  a12,
+                     const A13&  a13,
+                     const A14&  a14)
 {
-    return allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
-                                         a1,
-                                         a2,
-                                         a3,
-                                         a4,
-                                         a5,
-                                         a6,
-                                         a7,
-                                         a8,
-                                         a9,
-                                         a10,
-                                         a11,
-                                         a12,
-                                         a13,
-                                         a14);
+    return bsl::allocate_shared<ELEMENT_TYPE>(bsl::allocator<ELEMENT_TYPE>(a),
+                                              a1,
+                                              a2,
+                                              a3,
+                                              a4,
+                                              a5,
+                                              a6,
+                                              a7,
+                                              a8,
+                                              a9,
+                                              a10,
+                                              a11,
+                                              a12,
+                                              a13,
+                                              a14);
 }
 
 template <class ELEMENT_TYPE>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::make_shared()
 {
-    return
-       allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator());
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                     BloombergLP::bslma::Default::allocator());
 }
 
 template <class ELEMENT_TYPE, class A1>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::make_shared(const A1& a1)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1);
 }
 
 template <class ELEMENT_TYPE, class A1, class A2>
+inline
 bsl::shared_ptr<ELEMENT_TYPE> bsl::make_shared(const A1& a1, const A2& a2)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2);
 }
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::make_shared(const A1& a1, const A2& a2, const A3& a3)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3);
 }
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
 bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5715,12 +6051,16 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4)
 }
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
+bsl::make_shared(const A1& a1,
+                 const A2& a2,
+                 const A3& a3,
+                 const A4& a4,
                  const A5& a5)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5730,12 +6070,17 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6)
+bsl::make_shared(const A1& a1,
+                 const A2& a2,
+                 const A3& a3,
+                 const A4& a4,
+                 const A5& a5,
+                 const A6& a6)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5746,12 +6091,18 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7)
+bsl::make_shared(const A1& a1,
+                 const A2& a2,
+                 const A3& a3,
+                 const A4& a4,
+                 const A5& a5,
+                 const A6& a6,
+                 const A7& a7)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5763,12 +6114,19 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8)
+bsl::make_shared(const A1& a1,
+                 const A2& a2,
+                 const A3& a3,
+                 const A4& a4,
+                 const A5& a5,
+                 const A6& a6,
+                 const A7& a7,
+                 const A8& a8)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5781,13 +6139,20 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
+bsl::make_shared(const A1& a1,
+                 const A2& a2,
+                 const A3& a3,
+                 const A4& a4,
+                 const A5& a5,
+                 const A6& a6,
+                 const A7& a7,
+                 const A8& a8,
                  const A9& a9)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5801,13 +6166,21 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9, class A10>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                 const A9& a9, const A10& a10)
+bsl::make_shared(const A1&  a1,
+                 const A2&  a2,
+                 const A3&  a3,
+                 const A4&  a4,
+                 const A5&  a5,
+                 const A6&  a6,
+                 const A7&  a7,
+                 const A8&  a8,
+                 const A9&  a9,
+                 const A10& a10)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5822,13 +6195,22 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9, class A10, class A11>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                 const A9& a9, const A10& a10, const A11& a11)
+bsl::make_shared(const A1&  a1,
+                 const A2&  a2,
+                 const A3&  a3,
+                 const A4&  a4,
+                 const A5&  a5,
+                 const A6&  a6,
+                 const A7&  a7,
+                 const A8&  a8,
+                 const A9&  a9,
+                 const A10& a10,
+                 const A11& a11)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5845,13 +6227,23 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9, class A10, class A11,
           class A12>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                 const A9& a9, const A10& a10, const A11& a11, const A12& a12)
+bsl::make_shared(const A1&  a1,
+                 const A2&  a2,
+                 const A3&  a3,
+                 const A4&  a4,
+                 const A5&  a5,
+                 const A6&  a6,
+                 const A7&  a7,
+                 const A8&  a8,
+                 const A9&  a9,
+                 const A10& a10,
+                 const A11& a11,
+                 const A12& a12)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5869,14 +6261,24 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9, class A10, class A11,
           class A12, class A13>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                 const A9& a9, const A10& a10, const A11& a11, const A12& a12,
+bsl::make_shared(const A1&  a1,
+                 const A2&  a2,
+                 const A3&  a3,
+                 const A4&  a4,
+                 const A5&  a5,
+                 const A6&  a6,
+                 const A7&  a7,
+                 const A8&  a8,
+                 const A9&  a9,
+                 const A10& a10,
+                 const A11& a11,
+                 const A12& a12,
                  const A13& a13)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5895,14 +6297,25 @@ bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
 template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4, class A5,
           class A6, class A7, class A8, class A9, class A10, class A11,
           class A12, class A13, class A14>
+inline
 bsl::shared_ptr<ELEMENT_TYPE>
-bsl::make_shared(const A1& a1, const A2& a2, const A3& a3, const A4& a4,
-                 const A5& a5, const A6& a6, const A7& a7, const A8& a8,
-                 const A9& a9, const A10& a10, const A11& a11, const A12& a12,
-                 const A13& a13, const A14& a14)
+bsl::make_shared(const A1&  a1,
+                 const A2&  a2,
+                 const A3&  a3,
+                 const A4&  a4,
+                 const A5&  a5,
+                 const A6&  a6,
+                 const A7&  a7,
+                 const A8&  a8,
+                 const A9&  a9,
+                 const A10& a10,
+                 const A11& a11,
+                 const A12& a12,
+                 const A13& a13,
+                 const A14& a14)
 {
-    return
-        allocate_shared<ELEMENT_TYPE>(BloombergLP::bslma::Default::allocator(),
+    return bsl::allocate_shared<ELEMENT_TYPE>(
+                                      BloombergLP::bslma::Default::allocator(),
                                       a1,
                                       a2,
                                       a3,
@@ -5946,7 +6359,7 @@ struct UsesBslmaAllocator< ::bsl::shared_ptr<ELEMENT_TYPE> >
     : bsl::false_type
 {};
 
-}  // close traits namespace
+}  // close namespace bslma
 
 namespace bslmf {
 
@@ -5965,7 +6378,7 @@ struct IsBitwiseMoveable< ::bsl::weak_ptr<ELEMENT_TYPE> >
     : bsl::true_type
 {};
 
-}  // close traits namespace
+}  // close namespace bslmf
 
 }  // close enterprise namespace
 

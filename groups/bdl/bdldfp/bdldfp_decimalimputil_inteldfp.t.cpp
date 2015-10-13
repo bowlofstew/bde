@@ -1,13 +1,11 @@
 // bdldfp_decimalimputil_inteldfp.t.cpp                               -*-C++-*-
 #include <bdldfp_decimalimputil_inteldfp.h>
 
-#include <bsls_ident.h>
-BSLS_IDENT("$Id$")
-
-#include <bdls_testutil.h>
+#include <bslim_testutil.h>
 #include <bsls_assert.h>
-#include <bsl_iostream.h>
+
 #include <bsl_cstdlib.h>
+#include <bsl_iostream.h>
 
 // ============================================================================
 //                                 TEST PLAN
@@ -57,18 +55,15 @@ void aSsErT(bool b, const char *s, int i)
 //                       STANDARD BDE TEST DRIVER MACROS
 //-----------------------------------------------------------------------------
 
-#define ASSERT       BDLS_TESTUTIL_ASSERT
+#define ASSERT       BSLIM_TESTUTIL_ASSERT
 
 #ifdef BSLS_PLATFORM_OS_LINUX
 extern "C" {
 extern const unsigned long long int  __four_over_pi[];
 }
 
-#define DEFINES
-#include "library_float128_dpml_four_over_pi.cpp"
 typedef struct { float a, b; double c; } SQRT_COEF_STRUCT;
 extern "C" const SQRT_COEF_STRUCT __dpml_bid_sqrt_t_table[];
-#undef DEFINES
 #endif
 
 int main()
@@ -76,11 +71,6 @@ int main()
 #ifdef BSLS_PLATFORM_OS_LINUX
     {
         const SQRT_COEF_STRUCT *p = &__dpml_bid_sqrt_t_table[0];
-        ASSERT(p);
-    }
-
-    {
-        const DIGIT_TYPE *p = &FOUR_OVER_PI_TABLE_NAME[0];
         ASSERT(p);
     }
 #endif

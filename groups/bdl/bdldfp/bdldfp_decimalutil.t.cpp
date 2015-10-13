@@ -5,10 +5,10 @@
 #include <bdldfp_decimalconvertutil.h>
 #include <bdldfp_uint128.h>
 
-#include <bdls_testutil.h>
+#include <bslim_testutil.h>
 
-#include <bslma_testallocator.h>
 #include <bslma_defaultallocatorguard.h>
+#include <bslma_testallocator.h>
 
 #include <bsls_assert.h>
 #include <bsls_asserttest.h>
@@ -56,64 +56,49 @@ using bsl::atoi;
 // [  ] USAGE EXAMPLE
 // ----------------------------------------------------------------------------
 
-
 // ============================================================================
-//                      STANDARD BDE ASSERT TEST MACROS
+//                     STANDARD BDE ASSERT TEST FUNCTION
 // ----------------------------------------------------------------------------
 
-static int testStatus = 0;
+namespace {
 
-static void aSsErT(int c, const char *s, int i)
+int testStatus = 0;
+
+void aSsErT(bool condition, const char *message, int line)
 {
-    if (c) {
-        cout << "Error " << __FILE__ << "(" << i << "): " << s
+    if (condition) {
+        cout << "Error " __FILE__ "(" << line << "): " << message
              << "    (failed)" << endl;
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
-#define ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
+
+}  // close unnamed namespace
 
 // ============================================================================
-//                  STANDARD BDE LOOP-ASSERT TEST MACROS
+//               STANDARD BDE TEST DRIVER MACRO ABBREVIATIONS
 // ----------------------------------------------------------------------------
 
-#define LOOP_ASSERT(I,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\n"; aSsErT(1, #X, __LINE__); }}
+#define ASSERT       BSLIM_TESTUTIL_ASSERT
+#define ASSERTV      BSLIM_TESTUTIL_ASSERTV
 
-#define LOOP2_ASSERT(I,J,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\t" << #J << ": " \
-              << J << "\n"; aSsErT(1, #X, __LINE__); } }
+#define LOOP_ASSERT  BSLIM_TESTUTIL_LOOP_ASSERT
+#define LOOP0_ASSERT BSLIM_TESTUTIL_LOOP0_ASSERT
+#define LOOP1_ASSERT BSLIM_TESTUTIL_LOOP1_ASSERT
+#define LOOP2_ASSERT BSLIM_TESTUTIL_LOOP2_ASSERT
+#define LOOP3_ASSERT BSLIM_TESTUTIL_LOOP3_ASSERT
+#define LOOP4_ASSERT BSLIM_TESTUTIL_LOOP4_ASSERT
+#define LOOP5_ASSERT BSLIM_TESTUTIL_LOOP5_ASSERT
+#define LOOP6_ASSERT BSLIM_TESTUTIL_LOOP6_ASSERT
 
-#define LOOP3_ASSERT(I,J,K,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\t" << #J << ": " << J << "\t" \
-              << #K << ": " << K << "\n"; aSsErT(1, #X, __LINE__); } }
-
-#define LOOP4_ASSERT(I,J,K,L,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\t" << #J << ": " << J << "\t" << \
-       #K << ": " << K << "\t" << #L << ": " << L << "\n"; \
-       aSsErT(1, #X, __LINE__); } }
-
-#define LOOP5_ASSERT(I,J,K,L,M,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\t" << #J << ": " << J << "\t" << \
-       #K << ": " << K << "\t" << #L << ": " << L << "\t" << \
-       #M << ": " << M << "\n"; \
-       aSsErT(1, #X, __LINE__); } }
-
-#define LOOP6_ASSERT(I,J,K,L,M,N,X) { \
-   if (!(X)) { cout << #I << ": " << I << "\t" << #J << ": " << J << "\t" << \
-       #K << ": " << K << "\t" << #L << ": " << L << "\t" << \
-       #M << ": " << M << "\t" << #N << ": " << N << "\n"; \
-       aSsErT(1, #X, __LINE__); } }
-
-// ============================================================================
-//                  SEMI-STANDARD TEST OUTPUT MACROS
-// ----------------------------------------------------------------------------
-
-#define P(X) cout << #X " = " << (X) << endl; // Print identifier and value.
-#define Q(X) cout << "<| " #X " |>" << endl;  // Quote identifier literally.
-#define P_(X) cout << #X " = " << (X) << ", "<< flush; // 'P(X)' without '\n'
-#define T_ cout << "\t" << flush;             // Print tab w/o newline.
-#define L_ __LINE__                           // current Line number
+#define Q            BSLIM_TESTUTIL_Q   // Quote identifier literally.
+#define P            BSLIM_TESTUTIL_P   // Print identifier and value.
+#define P_           BSLIM_TESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLIM_TESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLIM_TESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
@@ -335,7 +320,7 @@ BDEC::DecimalImpUtil::ValueType64 makeDecimalRaw64Zero(long long mantissa,
     if (0 == mantissa) {
         DpdUtil::StorageType64 value = DpdUtil::makeDecimalRaw64(mantissa,
                                                                  exponent);
-        return bdldfp::DecimalImpUtil::convertFromDPD(value);
+        return bdldfp::DecimalImpUtil::convertFromDPD(value);         // RETURN
     }
 
 #endif
@@ -353,16 +338,16 @@ BDEC::DecimalImpUtil::ValueType128 makeDecimalRaw128Zero(long long mantissa,
 {
 #if defined(BDLDFP_DECIMALPLATFORM_INTELDFP)
     if (0 == mantissa) {
-        DpdUtil::StorageType128 value = 
+        DpdUtil::StorageType128 value =
             DpdUtil::makeDecimalRaw128(mantissa, exponent);
-        return bdldfp::DecimalImpUtil::convertFromDPD(value);
+        return bdldfp::DecimalImpUtil::convertFromDPD(value);         // RETURN
     }
 #endif
     return BDEC::DecimalImpUtil::makeDecimalRaw128(mantissa, exponent);
 }
 
 
-}  // closing unnamed namespace.
+}  // close unnamed namespace
 
 //=============================================================================
 //              GLOBAL HELPER FUNCTIONS AND CLASSES FOR TESTING
@@ -1683,22 +1668,22 @@ int main(int argc, char* argv[])
             {
                 BDEC::Decimal64 ACTUAL   = makeDecimalRaw64Zero  (42, 5);
                 BDEC::Decimal64 EXPECTED = Util::makeDecimalRaw64(42, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
             {
                 BDEC::Decimal64 ACTUAL   = makeDecimalRaw64Zero  (42u, 5);
                 BDEC::Decimal64 EXPECTED = Util::makeDecimalRaw64(42u, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
             {
                 BDEC::Decimal64 ACTUAL   = makeDecimalRaw64Zero  (42ll, 5);
                 BDEC::Decimal64 EXPECTED = Util::makeDecimalRaw64(42ll, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
             {
                 BDEC::Decimal64 ACTUAL   = makeDecimalRaw64Zero  (42ull, 5);
                 BDEC::Decimal64 EXPECTED = Util::makeDecimalRaw64(42ull, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
 
 
@@ -1707,34 +1692,34 @@ int main(int argc, char* argv[])
             {
                 DpdUtil::StorageType64 ACTUAL = DpdUtil::makeDecimalRaw64(0,0);
                 unsigned long long EXPECTED = 0x2238000000000000ull;
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
 
             }
             {
                 BDEC::Decimal64 value = makeDecimalRaw64Zero(0, 0);
 
-                DpdUtil::StorageType64 ACTUAL = 
+                DpdUtil::StorageType64 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 unsigned long long EXPECTED = 0x2238000000000000ull;
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
 
             {
                 BDEC::Decimal64 value = makeDecimalRaw64Zero(0, 5);
 
-                DpdUtil::StorageType64 ACTUAL = 
+                DpdUtil::StorageType64 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 unsigned long long EXPECTED = 0x224C000000000000ull;
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
 
             {
                 BDEC::Decimal64 value = makeDecimalRaw64Zero(0, -5);
 
-                DpdUtil::StorageType64 ACTUAL = 
+                DpdUtil::StorageType64 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 unsigned long long EXPECTED = 0x2224000000000000ull;
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 8));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 8));
             }
 
         }
@@ -1746,22 +1731,22 @@ int main(int argc, char* argv[])
             {
                 BDEC::Decimal128 ACTUAL   = makeDecimalRaw128Zero  (42, 5);
                 BDEC::Decimal128 EXPECTED = Util::makeDecimalRaw128(42, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
             {
                 BDEC::Decimal128 ACTUAL   = makeDecimalRaw128Zero  (42u, 5);
                 BDEC::Decimal128 EXPECTED = Util::makeDecimalRaw128(42u, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
             {
                 BDEC::Decimal128 ACTUAL   = makeDecimalRaw128Zero  (42ll, 5);
                 BDEC::Decimal128 EXPECTED = Util::makeDecimalRaw128(42ll, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
             {
                 BDEC::Decimal128 ACTUAL   = makeDecimalRaw128Zero  (42ull, 5);
                 BDEC::Decimal128 EXPECTED = Util::makeDecimalRaw128(42ull, 5);
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
 
             // Test against hard coded DPD bit values.
@@ -1769,35 +1754,35 @@ int main(int argc, char* argv[])
             {
                 BDEC::Decimal128 value = makeDecimalRaw128Zero(0, 0);
 
-                DpdUtil::StorageType128 ACTUAL = 
+                DpdUtil::StorageType128 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 BloombergLP::bdldfp::Uint128 EXPECTED(
                                  0x2208000000000000ull, 0x0000000000000000ull);
 
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
 
 
             {
                 BDEC::Decimal128 value = makeDecimalRaw128Zero(0, 5);
 
-                DpdUtil::StorageType128 ACTUAL = 
+                DpdUtil::StorageType128 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 BloombergLP::bdldfp::Uint128 EXPECTED(
                                  0x2209400000000000ull, 0x0000000000000000ull);
 
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
 
             {
                 BDEC::Decimal128 value = makeDecimalRaw128Zero(0, -5);
 
-                DpdUtil::StorageType128 ACTUAL = 
+                DpdUtil::StorageType128 ACTUAL =
                                 ImpUtil::convertToDPD(*value.data());
                 BloombergLP::bdldfp::Uint128 EXPECTED(
                                  0x2206C00000000000ull, 0x0000000000000000ull);
 
-                ASSERT(!memcmp(&ACTUAL, &EXPECTED, 16));
+                ASSERT(!bsl::memcmp(&ACTUAL, &EXPECTED, 16));
             }
 
         }
@@ -1856,7 +1841,7 @@ int main(int argc, char* argv[])
 
         if (veryVeryVerbose) bsl::cout << "makeDecimal64" << bsl::endl;
 
-#if defined(BSLS_PLATFORM_CMP_GNU) && BSLS_PLATFORM_CMP_VER_MAJOR > 40700
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Woverflow"
 #endif
@@ -1871,7 +1856,7 @@ int main(int argc, char* argv[])
         ASSERT(Util::makeDecimal64(1234567890123456ull, -382-16+1) ==
                BDLDFP_DECIMAL_DD(1.234567890123456e-382));
 
-#if defined(BSLS_PLATFORM_CMP_GNU) && BSLS_PLATFORM_CMP_VER_MAJOR > 40700
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
 
@@ -1941,7 +1926,7 @@ int main(int argc, char* argv[])
         ASSERT(Util::fabs(BDLDFP_DECIMAL_DF(-1.234567e-94))
                == BDLDFP_DECIMAL_DF(1.234567e-94));
 
-#if defined(BSLS_PLATFORM_CMP_GNU) && BSLS_PLATFORM_CMP_VER_MAJOR > 40700
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Woverflow"
 #endif
@@ -1957,7 +1942,7 @@ int main(int argc, char* argv[])
         ASSERT(Util::fabs(BDLDFP_DECIMAL_DL(-1.234567890123456e-382))
                == BDLDFP_DECIMAL_DL(1.234567890123456e-382));
 
-#if defined(BSLS_PLATFORM_CMP_GNU) && BSLS_PLATFORM_CMP_VER_MAJOR > 40700
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
 

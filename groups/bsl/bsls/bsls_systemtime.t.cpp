@@ -11,7 +11,13 @@
 #include <unistd.h>
 #endif
 
+#if defined(BSLS_PLATFORM_CMP_MSVC) && BSLS_PLATFORM_CMP_VERSION < 1600
+// stdint.h is only available starting is VS2010.
+typedef unsigned long long int64_t;
+#else
 #include <stdint.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -210,7 +216,7 @@ int main(int argc, char *argv[])
         // Testing:
         //  TimeInterval now(SystemClockType::Enum);
         // --------------------------------------------------------------------
-  
+
         if (verbose) printf("\nCLASS METHODS: 'now(SystemClockType::Enum)'"
                             "\n===========================================\n");
 
@@ -235,7 +241,7 @@ int main(int argc, char *argv[])
         // Concerns:
         //: 1 Consecutive calls to 'nowMonotonicClock' measure time intervals
         //:   that match those measured by calls to the (previously tested)
-        //:   'nowRealtimeClock'. 
+        //:   'nowRealtimeClock'.
         //:
         //: 2 That consecutive values do not decrease.
         //:

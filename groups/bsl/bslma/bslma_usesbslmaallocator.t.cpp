@@ -7,12 +7,10 @@
 #include <bslmf_nestedtraitdeclaration.h>
 #include <bsls_bsltestutil.h>
 
-#include <cstdio>
-#include <cstdlib>
+#include <stdio.h>      // 'printf'
+#include <stdlib.h>     // 'atoi'
 
 using namespace BloombergLP;
-using namespace std;
-using namespace bsl;
 
 //=============================================================================
 //                             TEST PLAN
@@ -28,25 +26,36 @@ using namespace bsl;
 // [ 2] USAGE EXAMPLE
 //-----------------------------------------------------------------------------
 
-#pragma bde_verify -TP19
+// BDE_VERIFY pragma: -TP19
 
-//=============================================================================
-//                  STANDARD BDE ASSERT TEST MACRO
-//-----------------------------------------------------------------------------
-static int testStatus = 0;
+// ============================================================================
+//                     STANDARD BSL ASSERT TEST FUNCTION
+// ----------------------------------------------------------------------------
 
-static void aSsErT(bool b, const char *s, int i) {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+namespace {
+
+int testStatus = 0;
+
+void aSsErT(bool condition, const char *message, int line)
+{
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
-//=============================================================================
-//                       STANDARD BDE TEST DRIVER MACROS
-//-----------------------------------------------------------------------------
+}  // close unnamed namespace
+
+// ============================================================================
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
+// ----------------------------------------------------------------------------
 
 #define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
 #define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
 #define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
@@ -55,13 +64,12 @@ static void aSsErT(bool b, const char *s, int i) {
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
-#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  NEGATIVE-TEST MACRO ABBREVIATIONS
@@ -82,8 +90,8 @@ static void aSsErT(bool b, const char *s, int i) {
 
 // Suppress some bde_verify warnings for the usage example
 
-#pragma bde_verify push
-#pragma bde_verify -FD03  // parameter not documented warning
+// BDE_VERIFY pragma: push
+// BDE_VERIFY pragma: -FD03  // parameter not documented warning
 
 class DoesNotUseAnAllocatorType {
 };
@@ -144,7 +152,7 @@ class DoesNotUseAnAllocatorType {
             // ...
     };
 //
-    }  // close package namespace
+    }  // close namespace xyz
 
     namespace BloombergLP {
     namespace bslma {
@@ -159,7 +167,7 @@ class DoesNotUseAnAllocatorType {
 // Notice that the specialization must be performed in the 'BloombergLP::bslma'
 // namespace.
 
-#pragma bde_verify pop
+// BDE_VERIFY pragma: pop
 //=============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
 //-----------------------------------------------------------------------------
@@ -199,7 +207,7 @@ struct ConvertibleToAny {
         // Return a default constructed object of 'TYPE'.
 };
 
-}
+}  // close unnamed namespace
 
 namespace BloombergLP {
 namespace bslma {
@@ -214,8 +222,8 @@ struct UsesBslmaAllocator<ConvertibleToAny> : bsl::true_type {
     // work.
 };
 
-}
-}
+}  // close package namespace
+}  // close enterprise namespace
 
 //=============================================================================
 //                  CLASSES FOR TESTING USAGE EXAMPLES
@@ -227,13 +235,15 @@ struct UsesBslmaAllocator<ConvertibleToAny> : bsl::true_type {
 
 int main(int argc, char *argv[])
 {
-    int test = argc > 1 ? atoi(argv[1]) : 0;
-    bool verbose = argc > 2;
-    bool veryVerbose = argc > 3;
-    bool veryVeryVerbose = argc > 4;
+    int                 test = argc > 1 ? atoi(argv[1]) : 0;
+    bool             verbose = argc > 2;
+    bool         veryVerbose = argc > 3;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
 
-    (void)veryVerbose;
-    (void)veryVeryVerbose;
+    (void)veryVerbose;           // suppress unused variable warning
+    (void)veryVeryVerbose;       // suppress unused variable warning
+    (void)veryVeryVeryVerbose;   // suppress unused variable warning
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 
@@ -329,7 +339,6 @@ int main(int argc, char *argv[])
 
         ASSERT(bslma::UsesBslmaAllocator<ConvertibleToAny>::value);
       } break;
-
       default: {
         fprintf(stderr, "WARNING: CASE `%d' NOT FOUND.\n", test);
         testStatus = -1;

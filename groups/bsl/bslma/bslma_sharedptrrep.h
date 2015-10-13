@@ -39,7 +39,7 @@ BSLS_IDENT("$Id$ $CSID$")
 // 'acquireWeakRef' should be called when a new weak reference is created and
 // 'releaseWeakRef' should be called when a weak reference is removed.
 //
-///Thread-Safety
+///Thread Safety
 ///-------------
 // 'bslma::SharedPtrRep' is thread-safe provided that 'disposeObject' and
 // 'disposeRep' are not called explicitly, meaning that all non-creator
@@ -320,8 +320,10 @@ class SharedPtrRep {
 
   protected:
     // PROTECTED CREATORS
-    ~SharedPtrRep();
-        // Destroy this representation object.
+    virtual ~SharedPtrRep();
+        // Destroy this representation object.  Note that this destructor is
+        // not intended to be invoked polymorphically, and is marked 'virtual'
+        // only to silence frequent warnings on popular compilers.
 
   public:
     // CLASS METHODS
@@ -512,8 +514,8 @@ int SharedPtrRep::numWeakReferences() const
     return weakCount / 2;
 }
 
-}  // close namespace bslma
-}  // close namespace BloombergLP
+}  // close package namespace
+}  // close enterprise namespace
 
 #endif
 

@@ -51,30 +51,33 @@ using namespace bslh;
 //-----------------------------------------------------------------------------
 
 // ============================================================================
-//                      STANDARD BDE ASSERT TEST MACROS
+//                     STANDARD BSL ASSERT TEST FUNCTION
 // ----------------------------------------------------------------------------
-// NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
-// FUNCTIONS, INCLUDING IOSTREAMS.
 
 namespace {
 
 int testStatus = 0;
 
-void aSsErT(bool b, const char *s, int i)
+void aSsErT(bool condition, const char *message, int line)
 {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
 }  // close unnamed namespace
 
 // ============================================================================
-//                      STANDARD BDE TEST DRIVER MACROS
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
 // ----------------------------------------------------------------------------
 
 #define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
 #define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
 #define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
@@ -83,13 +86,12 @@ void aSsErT(bool b, const char *s, int i)
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
-#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  NEGATIVE-TEST MACRO ABBREVIATIONS
@@ -107,6 +109,7 @@ void aSsErT(bool b, const char *s, int i)
 // ----------------------------------------------------------------------------
 
 #define ZU BSLS_BSLTESTUTIL_FORMAT_ZU
+#define U64 BSLS_BSLTESTUTIL_FORMAT_U64
 
 //=============================================================================
 //                             USAGE EXAMPLE
@@ -312,7 +315,7 @@ class TypeChecker {
 };
 
 template<class EXPECTED_TYPE>
-bool TypeChecker<EXPECTED_TYPE>::isCorrectType(EXPECTED_TYPE type) {
+bool TypeChecker<EXPECTED_TYPE>::isCorrectType(EXPECTED_TYPE) {
     return true;
 }
 
@@ -328,6 +331,8 @@ typedef MockRNG CryptographicallySecureRNG;
 typedef bslh::SeedGenerator<MockRNG> SeedGen;
 typedef bslh::SeededHash<SeedGen, DefaultSeededHashAlgorithm> Obj;
 
+typedef bsls::Types::Uint64 u64;
+
 // ============================================================================
 //                            MAIN PROGRAM
 // ----------------------------------------------------------------------------
@@ -337,8 +342,11 @@ int main(int argc, char *argv[])
     int                 test = argc > 1 ? atoi(argv[1]) : 0;
     bool             verbose = argc > 2;
     bool         veryVerbose = argc > 3;
-//  bool     veryVeryVerbose = argc > 4;
-//  bool veryVeryVeryVerbose = argc > 5;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
+
+    (void)veryVeryVerbose;      // suppress warning
+    (void)veryVeryVeryVerbose;  // suppress warning
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 
@@ -502,9 +510,9 @@ int main(int argc, char *argv[])
                             "\n====================\n");
 
         static const struct {
-            int                  d_line;
-            const int            d_value;
-            bsls::Types::Uint64  d_expectedHash;
+            int d_line;
+            int d_value;
+            u64 d_expectedHash;
         } DATA[] = {
         // LINE    DATA              HASH
          {  L_,        1,  9778072230994240314ULL,},
@@ -523,7 +531,7 @@ int main(int argc, char *argv[])
          {  L_,  1594323,  3005240762459740192ULL,},
          {  L_,  4782969,  3383268391725748969ULL,},
         };
-        const int NUM_DATA = sizeof DATA / sizeof *DATA;
+        const int NUM_DATA = static_cast<int>(sizeof DATA / sizeof *DATA);
 
         if (verbose) printf("Create 'const' strings and hash them.  Compare"
                             " the results against known good values."
@@ -532,18 +540,20 @@ int main(int argc, char *argv[])
             for (int i = 0; i != NUM_DATA; ++i) {
                 const int     LINE  = DATA[i].d_line;
                 const int     VALUE = DATA[i].d_value;
-                const size_t  HASH  =
-                                   static_cast<size_t>(DATA[i].d_expectedHash);
-
-                if (veryVerbose) printf("Hashing: %i, Expecting: " ZU "\n",
-                                        VALUE,
-                                        HASH);
+                const u64 HASH  = DATA[i].d_expectedHash;
 
                 Obj hash = Obj();
-                LOOP_ASSERT(LINE, hash(VALUE) == HASH);
+                const u64 result = hash(VALUE);
+                size_t truncResult = size_t(result);
+                size_t truncExpect = size_t(HASH);
+                if (veryVerbose) printf(
+                             "Hashing: %i, Expecting: " U64 ", Got: " U64 "\n",
+                             VALUE, u64(truncExpect), u64(truncResult));
+                LOOP_ASSERT(LINE, truncResult == truncExpect);
 
                 const Obj constHash = Obj();
-                LOOP_ASSERT(LINE, constHash(VALUE) == HASH);
+                size_t constTruncResult = size_t(constHash(VALUE));
+                LOOP_ASSERT(LINE, constTruncResult == truncExpect);
             }
         }
 
@@ -606,6 +616,7 @@ int main(int argc, char *argv[])
                             " (C-1,7)\n");
         {
             Obj alg1 = Obj();
+            (void) alg1;
         }
 
         if (verbose) printf("Construct a 'SeededHash' using the parameterized"
@@ -613,6 +624,7 @@ int main(int argc, char *argv[])
         {
             SeedGen seedGen;
             Obj alg1(seedGen);
+            (void) alg1;
         }
 
         if (verbose) printf("Use the copy-initialization syntax to create a"
@@ -621,6 +633,7 @@ int main(int argc, char *argv[])
         {
             Obj alg1;
             Obj alg2 = alg1;
+            (void) alg2;
         }
 
         if (verbose) printf("Assign the value of the one (const) instance of"
@@ -628,6 +641,7 @@ int main(int argc, char *argv[])
         {
             const Obj alg1 = Obj();
             Obj alg2 = alg1;
+            (void) alg2;
         }
 
         if (verbose) printf("Chain the assignment of the value of the one"
@@ -638,6 +652,7 @@ int main(int argc, char *argv[])
             Obj alg1;
             Obj alg2 = alg1;
             alg2 = alg2 = alg1;
+            (void) alg2;
         }
 
       } break;

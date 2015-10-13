@@ -245,7 +245,7 @@ static void realaSsErT(bool b, const char *s, int i)
         return 42;
     }
 
-    }  // close package namespace
+    }  // close namespace bslabc
 //..
 // Then, we can write a test driver for this component.  We start by providing
 // the standard BDE assert test macro:
@@ -796,7 +796,7 @@ bool tempFileName(char *result)
         result[PATH_BUFFER_SIZE - 1] = '\0';
         free(fn);
     } else {
-        return false;
+        return false;                                                 // RETURN
     }
 #endif
 
@@ -1167,7 +1167,7 @@ bool OutputRedirector::load()
 
         if(charsRead < 0) {
             d_outputBuffer[0] = '\0';
-        } else if(static_cast<unsigned long>(charsRead) >= d_outputSize) {
+        } else if(charsRead >= d_outputSize) {
             // This case should never happen.  This assignment is safe because
             // the total buffer size is enough to hold 'd_outputSize' + 1.
             d_outputBuffer[d_outputSize] = '\0';
@@ -1885,7 +1885,7 @@ void TestDriver::testCase3(OutputRedirector                   *output,
 // (i.e. inside 'main'), so the test has been factored out into a separate
 // function.
 
-#ifdef BSLS_PLATFORM_CMP_GNU
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
@@ -1946,7 +1946,7 @@ void checkStackCorruptionTest()
     ASSERT(data.sentinel != SENTINEL_ONES);
 }
 
-#ifdef BSLS_PLATFORM_CMP_GNU
+#ifdef BSLS_PLATFORM_HAS_PRAGMA_GCC_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
 

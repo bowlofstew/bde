@@ -48,7 +48,7 @@ BSLS_IDENT("$Id: $")
 // Reference Systems Service, but simply regard each day as having a fixed
 // number of seconds (24 hours * 60 minutes / hour * 60 seconds / minute).
 //
-///Thread-Safety
+///Thread Safety
 ///-------------
 // It is safe to invoke any function defined in this component in two or more
 // separate threads simultaneously, provided no other thread is simultaneously
@@ -133,6 +133,7 @@ BSLS_IDENT("$Id: $")
 #ifndef INCLUDED_BDLT_DATETIMEINTERVAL
 #include <bdlt_datetimeinterval.h>
 #endif
+
 
 #ifndef INCLUDED_BDLT_TIME
 #include <bdlt_time.h>
@@ -417,6 +418,7 @@ Datetime EpochUtil::convertFromTimeT64(TimeT64 time)
     Datetime datetime(epoch());
     datetime.addSeconds(time);
 
+
     return datetime;
 }
 
@@ -432,6 +434,7 @@ int EpochUtil::convertFromTimeT64(Datetime *result, TimeT64 time)
 
     *result = epoch();
     result->addSeconds(time);
+
 
     return 0;
 }

@@ -12,9 +12,13 @@ BSLS_IDENT("$Id: $")
 //@SEE_ALSO: bdlscm_version
 //
 //@DESCRIPTION: This component provides versioning information for the 'bdl'
-// package group.  The 'BDL_VERSION' and 'BDL_MAKE_VERSION' macros that are
-// supplied can be used for conditional-compilation based on 'bdl' version
-// information.  The following usage example illustrates this basic capability.
+// package group.  The 'BDL_VERSION' macro that is supplied can be used for
+// conditional-compilation based on 'bdl' version information.  The following
+// usage example illustrates this basic capability.
+//
+// Note that since 'bdl' is always released in lock-step with 'bsl', they
+// share common versioning, and the 'BDL_VERSION' will always equal the
+// 'BSL_VERSION'.
 //
 ///Usage
 ///-----
@@ -26,9 +30,9 @@ BSLS_IDENT("$Id: $")
 // old or new name using conditional compilation.  In the following, the '#if'
 // preprocessor directive compares 'BDL_VERSION' (i.e., the latest BDL version,
 // excluding the patch version) to a specified major and minor version composed
-// using the 'BDL_MAKE_VERSION' macro:
+// using the 'BSL_MAKE_VERSION' macro:
 //..
-//  #if BDL_VERSION > BDL_MAKE_VERSION(1, 3)
+//  #if BDL_VERSION > BSL_MAKE_VERSION(1, 3)
 //      // Call 'newFunction' for BDL versions later than 1.3.
 //      int result = newFunction();
 //  #else
@@ -41,29 +45,18 @@ BSLS_IDENT("$Id: $")
 #include <bslscm_version.h>
 #endif
 
-#define BDL_VERSION_MAJOR     2
+#ifndef INCLUDED_BSLSCM_VERSIONTAG
+#include <bslscm_versiontag.h>
+#endif
+
+
+#define BDL_VERSION_MAJOR     BSL_VERSION_MAJOR
     // Provide the major version number of the current (latest) BDL release.
 
-#define BDL_VERSION_MINOR     22
+#define BDL_VERSION_MINOR     BSL_VERSION_MINOR
     // Provide the minor version number of the current (latest) BDL release.
 
-#define BDL_MAKE_VERSION(major, minor) ((major) * 10000 \
-                                      + (minor) *   100)
-    // Construct a composite version number in the range '[ 0 .. 999900 ]' from
-    // the specified 'major' and 'minor' version numbers.  The resulting value,
-    // when expressed as a 6-digit decimal string, has "00" as the two
-    // lowest-order decimal digits, 'minor' as the next two digits, and 'major'
-    // as the highest-order digits.  The result is unique for each combination
-    // of 'major' and 'minor', and is sortable such that a value composed from
-    // a given 'major' version number will compare larger than a value composed
-    // from a smaller 'major' version number (and similarly for 'minor' version
-    // numbers).  Note that if 'major' and 'minor' are both compile-time
-    // integral constants, then the resulting expression is also a compile-time
-    // integral constant.  Also note that the patch version number is
-    // intentionally not included.  The behavior is undefined unless 'major'
-    // and 'minor' are integral values in the range '[ 0 .. 99 ]'.
-
-#define BDL_VERSION BDL_MAKE_VERSION(BDL_VERSION_MAJOR, \
+#define BDL_VERSION BSL_MAKE_VERSION(BDL_VERSION_MAJOR, \
                                      BDL_VERSION_MINOR)
     // Construct a composite version number in the range '[ 0 .. 999900 ]' from
     // the specified 'BDL_VERSION_MAJOR' and 'BDL_VERSION_MINOR' numbers

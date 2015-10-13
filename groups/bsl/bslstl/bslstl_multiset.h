@@ -14,7 +14,7 @@ BSLS_IDENT("$Id: $")
 //
 //@SEE_ALSO: bslstl_set, bslstl_multimap
 //
-//@DESCRIPTION: This component defines a single class template 'multiset',
+//@DESCRIPTION: This component defines a single class template 'bsl::multiset',
 // implementing the standard container holding an ordered sequence of possibly
 // duplicate keys.
 //
@@ -79,10 +79,10 @@ BSLS_IDENT("$Id: $")
 // standard behavior of a 'bslma'-allocator-enabled type.  Such a multiset
 // accepts an optional 'bslma::Allocator' argument at construction.  If the
 // address of a 'bslma::Allocator' object is explicitly supplied at
-// construction, it will be used to supply memory for the multiset throughout
-// its lifetime; otherwise, the multiset will use the default allocator
-// installed at the time of the multiset's construction (see 'bslma_default').
-// In addition to directly allocating memory from the indicated
+// construction, it is used to supply memory for the multiset throughout its
+// lifetime; otherwise, the multiset will use the default allocator installed
+// at the time of the multiset's construction (see 'bslma_default').  In
+// addition to directly allocating memory from the indicated
 // 'bslma::Allocator', a multiset supplies that allocator's address to the
 // constructors of contained objects of the (template parameter) type 'KEY'
 // with the 'bslma::UsesBslmaAllocator' trait.
@@ -463,6 +463,14 @@ BSL_OVERRIDES_STD mode"
 #include <bslalg_typetraithasstliterators.h>
 #endif
 
+#ifndef INCLUDED_BSLS_ASSERT
+#include <bsls_assert.h>
+#endif
+
+#ifndef INCLUDED_BSLS_PERFORMANCEHINT
+#include <bsls_performancehint.h>
+#endif
+
 #ifndef INCLUDED_FUNCTIONAL
 #include <functional>
 #define INCLUDED_FUNCTIONAL
@@ -517,13 +525,13 @@ class multiset {
         // that if the allocator is stateless, it takes up no space.
         //
         // TBD: This struct should eventually be replaced by the use of a
-        // general EBO-enabled component that provides a 'pair'-like
-        // interface or a 'tuple'.
+        // general EBO-enabled component that provides a 'pair'-like interface
+        // or a 'tuple'.
 
         NodeFactory d_pool;  // pool of 'Node' objects
 
-        explicit DataWrapper(const COMPARATOR&  comparator,
-            const ALLOCATOR&   basicAllocator);
+        explicit DataWrapper(const COMPARATOR& comparator,
+                             const ALLOCATOR&  basicAllocator);
             // Create a 'DataWrapper' object with the specified 'comparator'
             // and 'basicAllocator'.
     };
@@ -563,17 +571,17 @@ class multiset {
   private:
     // PRIVATE MANIPULATORS
     NodeFactory& nodeFactory();
-        // Return a reference providing modifiable access to the
-        // node-allocator for this tree.
+        // Return a reference providing modifiable access to the node-allocator
+        // for this tree.
 
     Comparator& comparator();
-        // Return a reference providing modifiable access to the
-        // comparator for this tree.
+        // Return a reference providing modifiable access to the comparator for
+        // this tree.
 
     void quickSwap(multiset& other);
         // Efficiently exchange the value and comparator of this object with
-        // the value of the specified 'other' object.  This method provides
-        // the no-throw exception-safety guarantee.  The behavior is undefined
+        // the value of the specified 'other' object.  This method provides the
+        // no-throw exception-safety guarantee.  The behavior is undefined
         // unless this object was created with the same allocator as 'other'.
 
     // PRIVATE ACCESSORS
@@ -582,13 +590,13 @@ class multiset {
         // node-allocator for this tree.
 
     const Comparator& comparator() const;
-        // Return a reference providing non-modifiable access to the
-        // comparator for this tree.
+        // Return a reference providing non-modifiable access to the comparator
+        // for this tree.
 
   public:
     // CREATORS
-    explicit multiset(const COMPARATOR&  comparator = COMPARATOR(),
-        const ALLOCATOR& basicAllocator = ALLOCATOR())
+    explicit multiset(const COMPARATOR& comparator     = COMPARATOR(),
+                      const ALLOCATOR&  basicAllocator = ALLOCATOR())
         // Construct an empty multiset.  Optionally specify a 'comparator' used
         // to order keys contained in this object.  If 'comparator' is not
         // supplied, a default-constructed object of the (template parameter)
@@ -599,7 +607,7 @@ class multiset {
         // 'bsl::allocator' (the default), then 'basicAllocator', if supplied,
         // shall be convertible to 'bslma::Allocator *'.  If the 'ALLOCATOR'
         // argument is of type 'bsl::allocator' and 'basicAllocator' is not
-        // supplied, the currently installed default allocator will be used to
+        // supplied, the currently installed default allocator is used to
         // supply memory.
     : d_compAndAlloc(comparator, basicAllocator)
     , d_tree()
@@ -616,7 +624,7 @@ class multiset {
         // 'basicAllocator' to supply memory.  Use a default-constructed object
         // of the (template parameter) type 'COMPARATOR' to order the keys
         // contained in this multiset.  If the template parameter 'ALLOCATOR'
-        // argument is of type 'bsl::allocator' (the default) then
+        // argument is of type 'bsl::allocator' (the default), then
         // 'basicAllocator' shall be convertible to 'bslma::Allocator *'.
 
     multiset(const multiset& original);
@@ -627,24 +635,24 @@ class multiset {
         // select_on_container_copy_construction(original.allocator())' to
         // allocate memory.  If the (template parameter) type 'ALLOCATOR' is of
         // type 'bsl::allocator' (the default), the currently installed default
-        // allocator will be used to supply memory.  This method requires that
-        // the (template parameter) type 'KEY' be "copy-constructible" (see
-        // {Requirements on 'KEY'}).
+        // allocator is used to supply memory.  Note that this method requires
+        // that the (template parameter) type 'KEY' be "copy-constructible"
+        // (see {Requirements on 'KEY'}).
 
     multiset(const multiset& original, const ALLOCATOR& basicAllocator);
         // Construct a multiset having the same value as that of the specified
         // 'original' that will use the specified 'basicAllocator' to supply
         // memory.  Use a copy of 'original.key_comp()' to order the keys
         // contained in this multiset.  If the template parameter 'ALLOCATOR'
-        // argument is of type 'bsl::allocator' (the default) then
-        // 'basicAllocator' shall be convertible to 'bslma::Allocator *'.  This
-        // method requires that the (template parameter) type 'KEY' be
-        // "copy-constructible" (see {Requirements on 'KEY'}).
+        // argument is of type 'bsl::allocator' (the default), then
+        // 'basicAllocator' shall be convertible to 'bslma::Allocator *'.  Note
+        // that this method requires that the (template parameter) type 'KEY'
+        // be "copy-constructible" (see {Requirements on 'KEY'}).
 
     template <class INPUT_ITERATOR>
-    multiset(INPUT_ITERATOR first,
-             INPUT_ITERATOR last,
-             const COMPARATOR&   comparator = COMPARATOR(),
+    multiset(INPUT_ITERATOR    first,
+             INPUT_ITERATOR    last,
+             const COMPARATOR& comparator     = COMPARATOR(),
              const ALLOCATOR&  basicAllocator = ALLOCATOR());
         // Construct a set, and insert each 'value_type' object in the sequence
         // starting at the specified 'first' element, and ending immediately
@@ -656,21 +664,21 @@ class multiset {
         // used to supply memory.  If 'basicAllocator' is not supplied, a
         // default-constructed object of the (template parameter) type
         // 'ALLOCATOR' is used.  If the template parameter 'ALLOCATOR' argument
-        // is of type 'bsl::allocator' (the default) then 'basicAllocator', if
+        // is of type 'bsl::allocator' (the default), then 'basicAllocator', if
         // supplied, shall be convertible to 'bslma::Allocator *'.  If the
         // template parameter 'ALLOCATOR' argument is of type 'bsl::allocator'
         // and 'basicAllocator' is not supplied, the currently installed
-        // default allocator will be used to supply memory.  If the sequence
-        // 'first' and 'last' is ordered according to the identified
-        // 'comparator' then this operation will have O[N] complexity, where N
-        // is the number of elements between 'first' and 'last', otherwise this
-        // operation will have O[N * log(N)] complexity.  The (template
-        // parameter) type 'INPUT_ITERATOR' shall meet the requirements of an
-        // input iterator defined in the C++11 standard [24.2.3] providing
-        // access to values of a type convertible to 'value_type'.  The
-        // behavior is undefined unless 'first' and 'last' refer to a sequence
-        // of valid values where 'first' is at a position at or before 'last'.
-        // This method requires that the (template parameter) type 'KEY' be
+        // default allocator is used to supply memory.  If the sequence 'first'
+        // and 'last' is ordered according to the identified 'comparator', then
+        // this operation has 'O[N]' complexity, where 'N' is the number of
+        // elements between 'first' and 'last', otherwise this operation has
+        // 'O[N * log(N)]' complexity.  The (template parameter) type
+        // 'INPUT_ITERATOR' shall meet the requirements of an input iterator
+        // defined in the C++11 standard [24.2.3] providing access to values of
+        // a type convertible to 'value_type'.  The behavior is undefined
+        // unless 'first' and 'last' refer to a sequence of valid values where
+        // 'first' is at a position at or before 'last'.  Note that this method
+        // requires that the (template parameter) type 'KEY' be
         // "copy-constructible" (see {Requirements on 'KEY'}).
 
     ~multiset();
@@ -683,8 +691,8 @@ class multiset {
         // 'rhs' object, propagate to this object the allocator of 'rhs' if the
         // 'ALLOCATOR' type has trait 'propagate_on_container_copy_assignment',
         // and return a reference providing modifiable access to this object.
-        // This method requires that the (template parameter) type 'KEY' be
-        // "copy-constructible" (see {Requirements on 'KEY'}).
+        // Note that this method requires that the (template parameter) type
+        // 'KEY' be "copy-constructible" (see {Requirements on 'KEY'}).
 
     iterator begin();
         // Return an iterator providing modifiable access to the first
@@ -710,18 +718,18 @@ class multiset {
     iterator insert(const value_type& value);
         // Insert the specified 'value' into this multiset.  If a range
         // containing elements equivalent to 'value' already exist, insert
-        // 'value' at the end of that range.  This method requires that the
-        // (template parameter) type 'KEY' be "copy-constructible" (see
-        // {Requirements on 'KEY'}).
+        // 'value' at the end of that range.  Note that this method requires
+        // that the (template parameter) type 'KEY' be "copy-constructible"
+        // (see {Requirements on 'KEY'}).
 
     iterator insert(const_iterator hint, const value_type& value);
         // Insert the specified 'value' into this multiset as close as possible
         // to the position just prior to the specified 'hint' (in amortized
-        // constant time if the specified 'hint' is a valid immediate successor
-        // to 'value').  If 'hint' is not a valid immediate successor to
-        // 'value', this operation will have O[log(N)] complexity, where 'N' is
-        // the size of this set.  The behavior is undefined unless 'hint' is a
-        // valid iterator into this set.  This method requires that the
+        // constant time if the 'hint' is a valid immediate successor to
+        // 'value').  If 'hint' is not a valid immediate successor to 'value',
+        // this operation has 'O[log(N)]' complexity, where 'N' is the size of
+        // this set.  The behavior is undefined unless 'hint' is a valid
+        // iterator into this set.  Note that this method requires that the
         // (template parameter) type 'KEY' be "copy-constructible" (see
         // {Requirements on 'KEY'}).
 
@@ -732,9 +740,11 @@ class multiset {
         // immediately before the specified 'last' iterator.  The (template
         // parameter) type 'INPUT_ITERATOR' shall meet the requirements of an
         // input iterator defined in the C++11 standard [24.2.3] providing
-        // access to values of a type convertible to 'value_type'.  This method
-        // requires that the (template parameter) type 'KEY' be
-        // "copy-constructible" (see {Requirements on 'KEY'}).
+        // access to values of a type convertible to 'value_type'.  The
+        // behavior is undefined unless 'first' and 'last' refer to a sequence
+        // of valid values where 'first' is at a position at or before 'last'.
+        // Note that this method requires that the (template parameter) type
+        // 'KEY' be "copy-constructible" (see {Requirements on 'KEY'}).
 
     iterator erase(const_iterator position);
         // Remove from this set the 'value_type' object at the specified
@@ -760,12 +770,12 @@ class multiset {
 
     void swap(multiset<KEY, COMPARATOR, ALLOCATOR>& other);
         // Exchange the value of this object as well as its comparator with
-        // those of the specified 'other' object.  Additionally if
+        // those of the specified 'other' object.  Additionally, if
         // 'bslstl::AllocatorTraits<ALLOCATOR>::propagate_on_container_swap' is
-        // 'true' then exchange the allocator of this object with that of the
+        // 'true', then exchange the allocator of this object with that of the
         // 'other' object, and do not modify either allocator otherwise.  This
         // method provides the no-throw exception-safety guarantee and
-        // guarantees O[1] complexity.  The behavior is undefined is unless
+        // guarantees 'O[1]' complexity.  The behavior is undefined unless
         // either this object was created with the same allocator as 'other' or
         // 'propagate_on_container_swap' is 'true'.
 
@@ -776,9 +786,9 @@ class multiset {
 
     iterator find(const key_type& key);
         // Return an iterator providing modifiable access to the first
-        // 'value_type' object that is the same as 'key' in ordered sequence
-        // maintained by this multiset, if such an object exists; otherwise,
-        // return the past-the-end ('end') iterator.
+        // 'value_type' object that is the same as the specified 'key' in
+        // ordered sequence maintained by this multiset, if such an object
+        // exists; otherwise, return the past-the-end ('end') iterator.
 
     iterator lower_bound(const key_type& key);
         // Return an iterator providing modifiable access to the first (i.e.,
@@ -798,7 +808,7 @@ class multiset {
         // 'key' could be inserted into the ordered sequence maintained by this
         // multiset, while preserving its ordering.
 
-    bsl::pair<iterator, iterator> equal_range(const key_type& x);
+    bsl::pair<iterator, iterator> equal_range(const key_type& key);
         // Return a pair of iterators providing modifiable access to the
         // sequence of 'value_type' objects in this multiset the same as the
         // specified 'key', where the the first iterator is positioned at the
@@ -885,15 +895,15 @@ class multiset {
 
     const_iterator find(const key_type& key) const;
         // Return an iterator providing non-modifiable access to the first
-        // 'value_type' object that is the same as 'key' in ordered sequence
-        // maintained by this multiset, if such an object exists; otherwise,
-        // return the past-the-end ('end') iterator.
+        // 'value_type' object that is the same as the specified 'key' in
+        // ordered sequence maintained by this multiset, if such an object
+        // exists; otherwise, return the past-the-end ('end') iterator.
 
     size_type count(const key_type& key) const;
         // Return the number of 'value_type' objects within this multiset the
         // the same as the specified 'key'.
 
-    const_iterator lower_bound(const key_type& x) const;
+    const_iterator lower_bound(const key_type& key) const;
         // Return an iterator providing non-modifiable access to the first
         // (i.e., ordered least) 'value_type' object in this multiset
         // greater-than or equal-to the specified 'key', and the past-the-end
@@ -903,7 +913,7 @@ class multiset {
         // ordered sequence maintained by this multiset, while preserving its
         // ordering.
 
-    const_iterator upper_bound(const key_type& x) const;
+    const_iterator upper_bound(const key_type& key) const;
         // Return an iterator providing non-modifiable access to the first
         // (i.e., ordered least) 'value_type' object in this multiset greater
         // than the specified 'key', and the past-the-end iterator if this
@@ -913,7 +923,7 @@ class multiset {
         // sequence maintained by this multiset, while preserving its ordering.
 
     bsl::pair<const_iterator, const_iterator> equal_range(
-                                                      const key_type& x) const;
+                                                    const key_type& key) const;
         // Return a pair of iterators providing non-modifiable access to the
         // sequence of 'value_type' objects in this multiset the same as the
         // specified 'key', where the the first iterator is positioned at the
@@ -960,8 +970,8 @@ bool operator==(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // value, and 'false' otherwise.  Two 'multiset' objects have the same
     // value if they have the same number of keys, and each key that is
     // contained in one of the objects is also contained in the other object.
-    // This method requires that the (template parameter) type 'KEY' be
-    // "equality-comparable" (see {Requirements on 'KEY'}).
+    // Note that this method requires that the (template parameter) type 'KEY'
+    // be "equality-comparable" (see {Requirements on 'KEY'}).
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 bool operator!=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
@@ -970,8 +980,9 @@ bool operator!=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // same value, and 'false' otherwise.  Two 'multiset' objects do not have
     // the same value if they do not have the same number of keys, or some keys
     // that is contained in one of the objects is not also contained in the
-    // other object.  This method requires that the (template parameter) type
-    // 'KEY' be "equality-comparable" (see {Requirements on 'KEY'}).
+    // other object.  Note that this method requires that the (template
+    // parameter) type 'KEY' be "equality-comparable" (see {Requirements on
+    // 'KEY'}).
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 bool operator< (const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
@@ -981,8 +992,9 @@ bool operator< (const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // is less than that of 'rhs', if, for the first non-equal corresponding
     // key in their respective sequences, the 'lhs' key is less than the 'rhs'
     // key, or, if all their corresponding keys compare equal, 'lhs' has fewer
-    // keys than 'rhs'.  This method requires that the (template parameter)
-    // type 'KEY' be "less-than-comparable" (see {Requirements on 'KEY'}).
+    // keys than 'rhs'.  Note that this method requires that the (template
+    // parameter) type 'KEY' be "less-than-comparable" (see {Requirements on
+    // 'KEY'}).
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 bool operator> (const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
@@ -992,8 +1004,8 @@ bool operator> (const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // is greater than that of 'rhs', if, for the first non-equal corresponding
     // key in their respective sequences, the 'lhs' key is greater than the
     // 'rhs' key, or, if all their keys compare equal, 'lhs' has more keys than
-    // 'rhs'.  This method requires that the (template parameter) type 'KEY' be
-    // "less-than-comparable" (see {Requirements on 'KEY'}).
+    // 'rhs'.  Note that this method requires that the (template parameter)
+    // type 'KEY' be "less-than-comparable" (see {Requirements on 'KEY'}).
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 bool operator>=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
@@ -1004,8 +1016,8 @@ bool operator>=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // non-equal corresponding key in their respective sequences, the 'lhs' key
     // is less than the 'rhs' key, or, if all of their corresponding keys
     // compare equal, 'lhs' has less-than or equal number of keys as 'rhs'.
-    // This method requires that the (template parameter) type 'KEY' be
-    // "less-than-comparable" (see {Requirements on 'KEY'}).
+    // Note that this method requires that the (template parameter) type 'KEY'
+    // be "less-than-comparable" (see {Requirements on 'KEY'}).
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 bool operator<=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
@@ -1016,20 +1028,20 @@ bool operator<=(const multiset<KEY, COMPARATOR, ALLOCATOR>& lhs,
     // first corresponding key in their respective sequences, the 'lhs' key is
     // greater than the 'rhs' key, or, if all of their corresponding keys
     // compare equal, 'lhs' has greater-than or equal number of keys 'rhs'.
-    // This method requires that the (template parameter) type 'KEY' be
-    // "less-than-comparable" (see {Requirements on 'KEY'}).
+    // Note that this method requires that the (template parameter) type 'KEY'
+    // be "less-than-comparable" (see {Requirements on 'KEY'}).
 
 // specialized algorithms:
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 void swap(multiset<KEY, COMPARATOR, ALLOCATOR>& a,
           multiset<KEY, COMPARATOR, ALLOCATOR>& b);
     // Swap both the value and the comparator of the specified 'a' object with
-    // the value and comparator of the specified 'b' object.  Additionally if
+    // the value and comparator of the specified 'b' object.  Additionally, if
     // 'bslstl::AllocatorTraits<ALLOCATOR>::propagate_on_container_swap' is
-    // 'true' then exchange the allocator of 'a' with that of 'b', and do not
+    // 'true', then exchange the allocator of 'a' with that of 'b', and do not
     // modify either allocator otherwise.  This method provides the no-throw
-    // exception-safety guarantee and guarantees O[1] complexity.  The
-    // behavior is undefined is unless either this object was created with the
+    // exception-safety guarantee and guarantees 'O[1]' complexity.  The
+    // behavior is undefined unless either this object was created with the
     // same allocator as 'other' or 'propagate_on_container_swap' is 'true'.
 
 // ============================================================================
@@ -1361,7 +1373,7 @@ void multiset<KEY, COMPARATOR, ALLOCATOR>::swap(multiset& other)
 {
     if (AllocatorTraits::propagate_on_container_swap::value) {
         BloombergLP::bslalg::SwapUtil::swap(&nodeFactory().allocator(),
-                                           &other.nodeFactory().allocator());
+                                            &other.nodeFactory().allocator());
         quickSwap(other);
     }
     else {
@@ -1622,7 +1634,7 @@ multiset<KEY, COMPARATOR, ALLOCATOR>::equal_range(const key_type& key)
     return bsl::pair<iterator, iterator>(startIt, endIt);
 }
 
-}  // close namespace bslstl
+}  // close namespace bsl
 
 template <class KEY, class COMPARATOR, class ALLOCATOR>
 inline
@@ -1704,25 +1716,21 @@ namespace BloombergLP {
 
 namespace bslalg {
 
-template <typename KEY,
-          typename COMPARATOR,
-          typename ALLOCATOR>
+template <class KEY, class COMPARATOR, class ALLOCATOR>
 struct HasStlIterators<bsl::multiset<KEY, COMPARATOR, ALLOCATOR> >
     : bsl::true_type
 {};
 
-}  // close package namespace
+}  // close namespace bslalg
 
 namespace bslma {
 
-template <typename KEY,
-          typename COMPARATOR,
-          typename ALLOCATOR>
+template <class KEY, class COMPARATOR, class ALLOCATOR>
 struct UsesBslmaAllocator<bsl::multiset<KEY, COMPARATOR, ALLOCATOR> >
     : bsl::is_convertible<Allocator*, ALLOCATOR>
 {};
 
-}  // close package namespace
+}  // close namespace bslma
 
 }  // close enterprise namespace
 

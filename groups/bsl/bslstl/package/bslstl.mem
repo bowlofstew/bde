@@ -8,6 +8,7 @@ bslstl_bitset
 bslstl_deque
 bslstl_equalto
 bslstl_forwarditerator
+bslstl_function
 bslstl_hash
 bslstl_hashtable
 bslstl_hashtablebucketiterator
@@ -27,6 +28,7 @@ bslstl_pair
 bslstl_priorityqueue
 bslstl_queue
 bslstl_randomaccessiterator
+bslstl_referencewrapper
 bslstl_set
 bslstl_setcomparator
 bslstl_sharedptr
@@ -34,7 +36,6 @@ bslstl_sharedptrallocateinplacerep
 bslstl_sharedptrallocateoutofplacerep
 bslstl_simplepool
 bslstl_stack
-bslstl_sstream
 bslstl_stdexceptutil
 bslstl_string
 bslstl_stringbuf

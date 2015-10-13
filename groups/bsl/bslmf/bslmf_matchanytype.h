@@ -24,10 +24,14 @@ BSLS_IDENT("$Id: $")
 // given type, but since nothing is known about the constructors, one can't
 // just construct and object of the type.  'bslmf::TypeRep' allows one to
 // create a reference to the type.  Note that the 'rep' function in
-// 'bslma::TypeRep' is not implemented, it must never be called at run time.
+// 'bslmf::TypeRep' is not implemented, it must never be called at run time.
 //
-///Usage Example 1: 'bslmf::MatchAnyType'
-///--------------------------------------
+///Usage
+///-----
+// This section illustrates intended use of this component.
+//
+///Example 1: 'bslmf::MatchAnyType'
+/// - - - - - - - - - - - - - - - -
 //..
 //  struct X { };
 //  struct Y { };
@@ -51,8 +55,9 @@ BSLS_IDENT("$Id: $")
 //  assert(  isY(y));
 //  assert(  isY(z));
 //..
-///Usage Example 2: 'bslmf::TypeRep'
-///--------------------------------
+//
+///Example 2: 'bslmf::TypeRep'
+///- - - - - - - - - - - - - -
 //..
 //  struct X {};
 //  struct Y {};

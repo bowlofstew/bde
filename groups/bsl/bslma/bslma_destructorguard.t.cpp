@@ -5,11 +5,11 @@
 #include <bslma_default.h>
 #include <bslma_testallocator.h>
 
-#include <bsls_objectbuffer.h>
 #include <bsls_bsltestutil.h>
+#include <bsls_objectbuffer.h>
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h>      // 'printf'
+#include <stdlib.h>     // 'atoi'
 
 #include <vector>       // std::vector for the usage example
 
@@ -37,25 +37,34 @@ using namespace BloombergLP;
 // [1] ~my_Class();
 //=============================================================================
 
-//=============================================================================
-//                  STANDARD BDE ASSERT TEST MACRO
-//-----------------------------------------------------------------------------
-// NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
-// FUNCTIONS, INCLUDING IOSTREAMS.
-static int testStatus = 0;
+// ============================================================================
+//                     STANDARD BSL ASSERT TEST FUNCTION
+// ----------------------------------------------------------------------------
 
-static void aSsErT(bool b, const char *s, int i) {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+namespace {
+
+int testStatus = 0;
+
+void aSsErT(bool condition, const char *message, int line)
+{
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
-//=============================================================================
-//                       STANDARD BDE TEST DRIVER MACROS
-//-----------------------------------------------------------------------------
+}  // close unnamed namespace
+
+// ============================================================================
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
+// ----------------------------------------------------------------------------
 
 #define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
 #define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
 #define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
@@ -64,13 +73,12 @@ static void aSsErT(bool b, const char *s, int i) {
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
-#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  NEGATIVE-TEST MACRO ABBREVIATIONS
@@ -108,13 +116,25 @@ class my_Class {
 //                  GLOBAL TYPEDEFS, CONSTANTS AND VARIABLES
 //-----------------------------------------------------------------------------
 
-int test;
-int verbose;
-int veryVerbose;
-
 //=============================================================================
 //                              USAGE EXAMPLE
 //-----------------------------------------------------------------------------
+
+// Workaround for optimization issue in xlC that mishandles pointer aliasing.
+//   IV56864: ALIASING BEHAVIOUR FOR PLACEMENT NEW
+//   http://www-01.ibm.com/support/docview.wss?uid=swg1IV56864
+// Place this macro following each use of placment new.  Alternatively,
+// compile with xlC_r -qalias=noansi, which reduces optimization opportunities
+// across entire translation unit instead of simply across optimization fence.
+// Update: issue is fixed in xlC 13.1 (__xlC__ >= 0x0d01).
+
+#if defined(BSLS_PLATFORM_CMP_IBM) && BSLS_PLATFORM_CMP_VERSION < 0x0d01
+    #define BSLMA_DESTRUCTORGUARD_XLC_PLACEMENT_NEW_FIX                       \
+                             BSLS_PERFORMANCEHINT_OPTIMIZATION_FENCE
+#else
+    #define BSLMA_DESTRUCTORGUARD_XLC_PLACEMENT_NEW_FIX
+#endif
+
 
 // Suppose we have a situation where one of the two constructors will be
 // called to create an object on the stack for performance reasons.  The
@@ -137,6 +157,7 @@ double usageExample(double startValue)
     else {
         new (&myVec) std::vector<double>();
     }
+    BSLMA_DESTRUCTORGUARD_XLC_PLACEMENT_NEW_FIX;
 
     //***********************************************************
     // Note the use of the destructor guard on 'myVec' (below). *
@@ -152,7 +173,7 @@ double usageExample(double startValue)
         // automatically along with 'guard'.
 
     if (myVec[0] >= 5.0) {
-        return 5.0;                                               // RETURN
+        return 5.0;                                                   // RETURN
             // Note that 'myVec' is automatically destroyed as the
             // function returns.
     }
@@ -168,9 +189,15 @@ double usageExample(double startValue)
 
 int main(int argc, char *argv[])
 {
-    test = argc > 1 ? atoi(argv[1]) : 0;
-    verbose = argc > 2;
-    veryVerbose = argc > 3;
+    int                 test = argc > 1 ? atoi(argv[1]) : 0;
+    bool             verbose = argc > 2;
+    bool         veryVerbose = argc > 3;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
+
+    (void)veryVerbose;           // suppress unused variable warning
+    (void)veryVeryVerbose;       // suppress unused variable warning
+    (void)veryVeryVeryVerbose;   // suppress unused variable warning
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 
