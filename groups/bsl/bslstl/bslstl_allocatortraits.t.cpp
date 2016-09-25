@@ -1,13 +1,13 @@
 // bslstl_allocatortraits.t.cpp                                       -*-C++-*-
 #include <bslstl_allocatortraits.h>
-
-#include <bslstl_allocator.h>
-
-#include <bslalg_typetraithasstliterators.h>
+#include <bslma_constructionutil.h>
 #include <bslma_default.h>
 #include <bslma_defaultallocatorguard.h>
+#include <bslma_stdallocator.h>
 #include <bslma_testallocator.h>
 #include <bslma_usesbslmaallocator.h>
+#include <bslmf_isbitwisemoveable.h>
+#include <bslmf_nestedtraitdeclaration.h>
 #include <bslmf_issame.h>
 #include <bslmf_removecv.h>
 #include <bsls_bsltestutil.h>
@@ -149,26 +149,6 @@ void aSsErT(int c, const char *s, int i) {
 //                  GLOBAL HELPER FUNCTIONS FOR TESTING
 //-----------------------------------------------------------------------------
 
-
-// In optimized builds, some compilers will elide some of the operations in the
-// destructors of the test classes defined below.  In order to force the
-// compiler to retain all of the code in the destructors, we provide the
-// following function that can be used to (conditionally) print out some of the
-// state of a data member.  If the destructor calls this function after
-// updating a data member, then the value set in the destructor will have
-// visible side-effects, but normal test runs do not have to be burdened with
-// additional output.
-
-static bool forceDestructorCall = false;
-
-template <class DATA_TYPE>
-void dumpData(const DATA_TYPE& data)
-{
-    if (forceDestructorCall) {
-        printf("%p: %c\n", &data, *reinterpret_cast<const char *>(&data));
-    }
-}
-
 //=============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
 //-----------------------------------------------------------------------------
@@ -227,11 +207,77 @@ class NonBslmaAllocator
         { d_mechanism->deallocate(p); }
 
     // ELEMENT CREATION FUNCTIONS
-    void construct(TYPE *p, const TYPE& val) {
-        ::new (static_cast<void *>(p)) TYPE(val);
+    template <class ELEMENT_TYPE>
+    void construct(ELEMENT_TYPE *p)
+    {
+        ::new (static_cast<void *>(p)) ELEMENT_TYPE();
+    }
+    template <class ELEMENT_TYPE, class A1>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1)
+    {
+        ::new (static_cast<void *>(p))
+            ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1));
+    }
+    template <class ELEMENT_TYPE, class A1, class A2>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2)
+    {
+        ::new (static_cast<void *>(p))
+            ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                         BSLS_COMPILERFEATURES_FORWARD(A2, a2));
     }
 
-    void destroy(TYPE *p) { p->~TYPE(); }
+    template <class ELEMENT_TYPE, class A1, class A2, class A3>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3)
+    {
+        ::new (static_cast<void *>(p))
+            ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                         BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                         BSLS_COMPILERFEATURES_FORWARD(A3, a3));
+    }
+
+    template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4)
+    {
+        ::new (static_cast<void *>(p))
+            ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                         BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                         BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+                         BSLS_COMPILERFEATURES_FORWARD(A4, a4));
+    }
+
+    template <class ELEMENT_TYPE,
+              class A1,
+              class A2,
+              class A3,
+              class A4,
+              class A5>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A5) a5)
+    {
+        ::new (static_cast<void *>(p))
+            ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                         BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                         BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+                         BSLS_COMPILERFEATURES_FORWARD(A4, a4),
+                         BSLS_COMPILERFEATURES_FORWARD(A5, a5));
+    }
+
+    template <class ELEMENT_TYPE>
+    void destroy(ELEMENT_TYPE *p) { p->~ELEMENT_TYPE(); }
 
     // ACCESSORS
     pointer address(reference x) const { return &x; }
@@ -264,13 +310,7 @@ class BslmaAllocator
     // allocator model (i.e., it is convertible from 'bslma::Allocator*'.
     bslma::Allocator *d_mechanism;
 
-    void doConstruct(TYPE *p, const TYPE& val, bsl::false_type) {
-        ::new (static_cast<void *>(p)) TYPE(val);
-    }
-
-    void doConstruct(TYPE *p, const TYPE& val, bsl::true_type) {
-        ::new (static_cast<void *>(p)) TYPE(val, this->d_mechanism);
-    }
+    typedef typename bslma::UsesBslmaAllocator<TYPE>::type IsBslma;
 
   public:
     // PUBLIC TYPES
@@ -302,13 +342,85 @@ class BslmaAllocator
         { d_mechanism->deallocate(p); }
 
     // ELEMENT CREATION FUNCTIONS
-    void construct(TYPE *p, const TYPE& val)
+    template <class ELEMENT_TYPE>
+    void construct(ELEMENT_TYPE *p)
     {
-        typedef typename bslma::UsesBslmaAllocator<TYPE>::type
-                                                            UsesBslmaAllocator;
-        doConstruct(p, val, UsesBslmaAllocator());
+        bslma::ConstructionUtil::construct(p, d_mechanism);
     }
-    void destroy(TYPE *p) { p->~TYPE(); }
+    template <class ELEMENT_TYPE, class A1>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1)
+    {
+        bslma::ConstructionUtil::construct(
+            p, d_mechanism, BSLS_COMPILERFEATURES_FORWARD(A1, a1));
+    }
+    template <class ELEMENT_TYPE, class A1, class A2>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2));
+    }
+
+    template <class ELEMENT_TYPE, class A1, class A2, class A3>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3));
+    }
+
+    template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+            BSLS_COMPILERFEATURES_FORWARD(A4, a4));
+    }
+
+    template <class ELEMENT_TYPE,
+              class A1,
+              class A2,
+              class A3,
+              class A4,
+              class A5>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A5) a5)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+            BSLS_COMPILERFEATURES_FORWARD(A4, a4),
+            BSLS_COMPILERFEATURES_FORWARD(A5, a5));
+    }
+
+    template <class ELEMENT_TYPE>
+    void destroy(ELEMENT_TYPE *p) { p->~ELEMENT_TYPE(); }
 
     // ACCESSORS
     pointer address(reference x) const { return &x; }
@@ -418,13 +530,85 @@ class FunkyAllocator
         { d_mechanism->deallocate(bsls::Util::addressOf(*p)); }
 
     // ELEMENT CREATION FUNCTIONS
-    void construct(TYPE *p, const TYPE& val)
+    template <class ELEMENT_TYPE>
+    void construct(ELEMENT_TYPE *p)
     {
-        typedef typename bslma::UsesBslmaAllocator<TYPE>::Type
-                                                            UsesBslmaAllocator;
-        doConstruct(p, val, UsesBslmaAllocator());
+        bslma::ConstructionUtil::construct(p, d_mechanism);
     }
-    void destroy(TYPE *p) { p->~TYPE(); }
+    template <class ELEMENT_TYPE, class A1>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1)
+    {
+        bslma::ConstructionUtil::construct(
+            p, d_mechanism, BSLS_COMPILERFEATURES_FORWARD(A1, a1));
+    }
+    template <class ELEMENT_TYPE, class A1, class A2>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2));
+    }
+
+    template <class ELEMENT_TYPE, class A1, class A2, class A3>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3));
+    }
+
+    template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+            BSLS_COMPILERFEATURES_FORWARD(A4, a4));
+    }
+
+    template <class ELEMENT_TYPE,
+              class A1,
+              class A2,
+              class A3,
+              class A4,
+              class A5>
+    void construct(ELEMENT_TYPE *p,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4,
+                   BSLS_COMPILERFEATURES_FORWARD_REF(A5) a5)
+    {
+        bslma::ConstructionUtil::construct(
+            p,
+            d_mechanism,
+            BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+            BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+            BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+            BSLS_COMPILERFEATURES_FORWARD(A4, a4),
+            BSLS_COMPILERFEATURES_FORWARD(A5, a5));
+    }
+
+    template <class ELEMENT_TYPE>
+    void destroy(ELEMENT_TYPE *p) { p->~ELEMENT_TYPE(); }
 
     // ACCESSORS
     pointer address(reference x) const
@@ -470,12 +654,15 @@ class AttribClass5
 
     AttribStruct5 d_attrib;
 
-    static int d_ctorCount;  // Count of constructor calls
-    static int d_dtorCount;  // Count of destructor calls
+    static int s_ctorCount;       // Count of constructor calls
+    static int s_dtorCount;       // Count of destructor calls
+    static int s_dtorScratchPad;  // Scratch area for dtor trace data
 
   public:
-    static int ctorCount() { return d_ctorCount; }
-    static int dtorCount() { return d_dtorCount; }
+    static int ctorCount() { return s_ctorCount; }
+    static int dtorCount() { return s_dtorCount; }
+    static int dtorScratchPad() { return s_dtorScratchPad; }
+    static void setDtorScratchPad(int value) { s_dtorScratchPad = value; }
 
     typedef bslma::Allocator* AllocatorType;
 
@@ -487,19 +674,16 @@ class AttribClass5
     {
         AttribStruct5 values = { a, b, c, d, e };
         d_attrib = values;
-        ++d_ctorCount;
+        ++s_ctorCount;
     }
 
     AttribClass5(const AttribClass5& other)
-        : d_attrib(other.d_attrib) { ++d_ctorCount; }
+        : d_attrib(other.d_attrib) { ++s_ctorCount; }
 
     ~AttribClass5()
     {
-        d_attrib.d_b = 0xdeadbeaf;
-        ++d_dtorCount;
-
-      dumpData(d_attrib.d_b);
-      dumpData(d_dtorCount);
+        s_dtorScratchPad = d_attrib.d_b;
+        ++s_dtorCount;
     }
 
     char        a() const { return d_attrib.d_a; }
@@ -511,8 +695,9 @@ class AttribClass5
     AllocatorType allocator() const { return bslma::Default::allocator(0); }
 };
 
-int AttribClass5::d_ctorCount = 0;
-int AttribClass5::d_dtorCount = 0;
+int AttribClass5::s_ctorCount = 0;
+int AttribClass5::s_dtorCount = 0;
+int AttribClass5::s_dtorScratchPad = 0;
 
 template <class ALLOC>
 class AttribClass5Alloc
@@ -664,8 +849,7 @@ inline bool isMutable(const TYPE& /* x */) { return false; }
 // the implementation of each method that must allocate memory, or create or
 // destroy elements.
 //..
-    #include <bslstl_allocatortraits.h>
-    #include <bslstl_allocator.h>
+    #include <bslma_allocatortraits.h>
 
     using namespace BloombergLP;
 
@@ -712,13 +896,14 @@ inline bool isMutable(const TYPE& /* x */) { return false; }
 //:   is convertible from 'bslma::Allocator*'.
 //..
     namespace BloombergLP {
-    namespace bslalg {
 
-    template <class TYPE, class ALLOC>
-    struct HasStlIterators<MyContainer<TYPE, ALLOC> > : bsl::true_type
-    {};
-
-    }  // close namespace bslalg
+    // namespace bslalg {
+    //
+    // template <class TYPE, class ALLOC>
+    // struct HasStlIterators<MyContainer<TYPE, ALLOC> > : bsl::true_type
+    // {};
+    //
+    // }  // close namespace bslalg
 
     namespace bslmf {
 
@@ -888,7 +1073,7 @@ inline bool isMutable(const TYPE& /* x */) { return false; }
         bslma::TestAllocator testAlloc;
         MyContainer<MyType> C1(&testAlloc);
         ASSERT((bsl::is_same<MyContainer<MyType>::allocator_type,
-                bsl::allocator<MyType> >::value));
+                             bsl::allocator<MyType> >::value));
         ASSERT(C1.get_allocator() == bsl::allocator<MyType>(&testAlloc));
         ASSERT(C1.front().allocator() == &testAlloc);
 
@@ -934,10 +1119,77 @@ inline bool isMutable(const TYPE& /* x */) { return false; }
         void deallocate(TYPE* p, size_type) { ::operator delete(p); }
 
         // ELEMENT CREATION FUNCTIONS
-        void construct(pointer p, const TYPE& value)
-            { new(static_cast<void *>(p)) TYPE(value); }
+        template <class ELEMENT_TYPE>
+        void construct(ELEMENT_TYPE *p)
+        {
+            ::new (static_cast<void *>(p)) ELEMENT_TYPE();
+        }
+        template <class ELEMENT_TYPE, class A1>
+        void construct(ELEMENT_TYPE *p,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1)
+        {
+            ::new (static_cast<void *>(p))
+                ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1));
+        }
+        template <class ELEMENT_TYPE, class A1, class A2>
+        void construct(ELEMENT_TYPE *p,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2)
+        {
+            ::new (static_cast<void *>(p))
+                ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                             BSLS_COMPILERFEATURES_FORWARD(A2, a2));
+        }
 
-        void destroy(pointer p) { p->~TYPE(); }
+        template <class ELEMENT_TYPE, class A1, class A2, class A3>
+        void construct(ELEMENT_TYPE *p,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3)
+        {
+            ::new (static_cast<void *>(p))
+                ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                             BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                             BSLS_COMPILERFEATURES_FORWARD(A3, a3));
+        }
+
+        template <class ELEMENT_TYPE, class A1, class A2, class A3, class A4>
+        void construct(ELEMENT_TYPE *p,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4)
+        {
+            ::new (static_cast<void *>(p))
+                ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                             BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                             BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+                             BSLS_COMPILERFEATURES_FORWARD(A4, a4));
+        }
+
+        template <class ELEMENT_TYPE,
+                  class A1,
+                  class A2,
+                  class A3,
+                  class A4,
+                  class A5>
+        void construct(ELEMENT_TYPE *p,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A1) a1,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A2) a2,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A3) a3,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A4) a4,
+                       BSLS_COMPILERFEATURES_FORWARD_REF(A5) a5)
+        {
+            ::new (static_cast<void *>(p))
+                ELEMENT_TYPE(BSLS_COMPILERFEATURES_FORWARD(A1, a1),
+                             BSLS_COMPILERFEATURES_FORWARD(A2, a2),
+                             BSLS_COMPILERFEATURES_FORWARD(A3, a3),
+                             BSLS_COMPILERFEATURES_FORWARD(A4, a4),
+                             BSLS_COMPILERFEATURES_FORWARD(A5, a5));
+        }
+
+        template <class ELEMENT_TYPE>
+        void destroy(ELEMENT_TYPE *p) { p->~ELEMENT_TYPE(); }
 
         // ACCESSORS
         static size_type max_size() { return UINT_MAX / sizeof(TYPE); }
@@ -977,7 +1229,7 @@ inline bool isMutable(const TYPE& /* x */) { return false; }
 
         MyContainer<MyType, MyTypeAlloc> C2(C1);
         ASSERT(C2.get_allocator() == C1.get_allocator());
-        ASSERT(C2.get_allocator() != MyTypeAlloc())
+        ASSERT(C2.get_allocator() != MyTypeAlloc());
         ASSERT(C2.front().allocator() == bslma::Default::defaultAllocator());
 
         return 0;
@@ -1107,13 +1359,14 @@ void testAllocatorConformance(const char* allocName)
     LOOP_ASSERT(allocName, p  == a.address(v));
     LOOP_ASSERT(allocName, cp == a.address(cv));
 
+    const int bBefore = cp->b();
+    AttribClass5::setDtorScratchPad(bBefore + 1); // any value != bBefore is OK
     a.destroy(bsls::Util::addressOf(*p));
     LOOP_ASSERT(allocName, AttribClass5::dtorCount() == dtorCountBefore + 1);
-    LOOP_ASSERT(allocName, 0xdeadbeaf == (unsigned) p->b());
-    LOOP_ASSERT(allocName, 0xdeadbeaf == (unsigned) cp->b());
+    LOOP_ASSERT(allocName, bBefore == AttribClass5::dtorScratchPad());
 
     a.deallocate(p, 1);
-    LOOP_ASSERT(allocName, ta.numBytesInUse() == 0)
+    LOOP_ASSERT(allocName, ta.numBytesInUse() == 0);
     LOOP_ASSERT(allocName, ta.numBlocksInUse() == 0);
     LOOP_ASSERT(allocName, AttribClass5::dtorCount() == dtorCountBefore + 1);
 
@@ -1124,7 +1377,7 @@ void testAllocatorConformance(const char* allocName)
     LOOP_ASSERT(allocName, ta.numBlocksInUse() == 1);
     LOOP_ASSERT(allocName, hint2 == g_lastHint);
     a.deallocate(p, 1);
-    LOOP_ASSERT(allocName, ta.numBytesInUse() == 0)
+    LOOP_ASSERT(allocName, ta.numBytesInUse() == 0);
     LOOP_ASSERT(allocName, ta.numBlocksInUse() == 0);
 
     LOOP_ASSERT(allocName, INT_MAX / sizeof(value_type) == a.max_size());
@@ -1589,11 +1842,12 @@ void testConstructDestroy(const char *allocname,
                      matchAttrib(objects[6].object(), A, B, C, D, E, exp_a));
 
         for (int j = 0; j < 7; ++j) {
+            const int bBefore = objects[i].object().b();
+            C::setDtorScratchPad(bBefore + 1);  // a value != bBefore
             TraitsT::destroy(a, bsls::Util::addressOf(objects[i].object()));
             LOOP3_ASSERT(allocname,tname,i, C::ctorCount() == expCtorCount);
             LOOP3_ASSERT(allocname,tname,i, C::dtorCount() == ++expDtorCount);
-            LOOP3_ASSERT(allocname,tname,i,
-                         0xdeadbeaf == (unsigned) objects[i].object().b());
+            LOOP3_ASSERT(allocname,tname,i, bBefore == C::dtorScratchPad());
         }
     }
 }
@@ -1608,11 +1862,6 @@ int main(int argc, char *argv[])
     verbose = argc > 2;
     veryVerbose = argc > 3;
     veryVeryVerbose = argc > 4;
-
-    // Output triggered by 'forceDestructorCall' is not meaningful, so
-    // de-couple output from test driver verbosity.
-
-    forceDestructorCall = argc > 6;
 
     setbuf(stdout, NULL);    // Use unbuffered output
 
@@ -2294,8 +2543,9 @@ int main(int argc, char *argv[])
             ASSERT(matchAttrib(*p, 'x', 88, 0.25, DFLT_D, DFLT_E));
 
             // Test 'destroy'
+            AttribClass5::setDtorScratchPad(0);
             Traits::destroy(a1, p);
-            ASSERT(0xdeadbeaf == (unsigned) p->b());
+            ASSERT(88 == AttribClass5::dtorScratchPad());
 
             // Test 'deallocate'
             Traits::deallocate(a1, p, 1);
@@ -2328,8 +2578,9 @@ int main(int argc, char *argv[])
             ASSERT(matchAttrib(*p, 'x', 88, 0.25, bye, DFLT_E, &ta));
 
             // Test 'destroy'
+            AttribClass5::setDtorScratchPad(0);
             Traits::destroy(a1, p);
-            ASSERT(0xdeadbeaf == (unsigned) p->b());
+            ASSERT(88 == AttribClass5::dtorScratchPad());
 
             // Test 'deallocate'
             Traits::deallocate(a1, p, 1);

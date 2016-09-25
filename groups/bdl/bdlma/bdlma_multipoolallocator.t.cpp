@@ -60,7 +60,7 @@ using namespace bsl;
 // [ 4] void deallocate(address);
 // [ 5] void release();
 // [ 7] int numPools() const;
-// [ 7] int maxPooledBlockSize() const;
+// [ 7] bsls::Types::size_type maxPooledBlockSize() const;
 //-----------------------------------------------------------------------------
 // [ 1] BREATHING TEST
 // [ 8] USAGE EXAMPLE
@@ -206,7 +206,7 @@ void stretchRemoveAll(Obj *object, int numElements, int objSize)
 // This section illustrates intended use of this component.
 //
 ///Example 1: Using a 'bdlma::MultipoolAllocator'
-///- - - - - - - - - - - - - - - - - - - - - - -
+/// - - - - - - - - - - - - - - - - - - - - - - -
 // A 'bdlma::MultipoolAllocator' can be used to supply memory to node-based
 // data structures such as 'bsl::set', 'bsl::list', and 'bsl::map'.  Suppose we
 // are implementing a container of named graphs, where a graph is defined by a
@@ -795,7 +795,7 @@ int main(int argc, char *argv[])
         //
         // Testing:
         //   int numPools() const;
-        //   int maxPooledBlockSize() const;
+        //   bsls::Types::size_type maxPooledBlockSize() const;
         // --------------------------------------------------------------------
 
         if (verbose) cout << endl
@@ -803,9 +803,9 @@ int main(int argc, char *argv[])
                       << "===========================================" << endl;
 
         static const struct {
-            int d_lineNum;       // line number
-            int d_numPools;      // number of pools
-            int d_maxBlockSize;  // maximum block size
+            int                    d_lineNum;       // line number
+            int                    d_numPools;      // number of pools
+            bsls::Types::size_type d_maxBlockSize;  // maximum block size
         } DATA[] = {
             //LINE  # POOLS     MAXIMUM BLOCK SIZE
             //----  -------     ------------------
@@ -818,9 +818,9 @@ int main(int argc, char *argv[])
         const int NUM_DATA = sizeof DATA / sizeof *DATA;
 
         for (int i = 0; i < NUM_DATA; ++i) {
-            const int LINE         = DATA[i].d_lineNum;
-            const int NUMPOOLS     = DATA[i].d_numPools;
-            const int MAXBLOCKSIZE = DATA[i].d_maxBlockSize;
+            const int                    LINE         = DATA[i].d_lineNum;
+            const int                    NUMPOOLS     = DATA[i].d_numPools;
+            const bsls::Types::size_type MAXBLOCKSIZE = DATA[i].d_maxBlockSize;
 
             if (veryVerbose) {
                 P_(LINE) P_(NUMPOOLS) P(MAXBLOCKSIZE)
@@ -2338,7 +2338,7 @@ int main(int argc, char *argv[])
 }
 
 // ----------------------------------------------------------------------------
-// Copyright 2015 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

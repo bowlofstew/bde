@@ -24,7 +24,6 @@
 #include <bsl_iostream.h>
 #include <bsl_sstream.h>
 
-
 using namespace BloombergLP;
 using namespace bsl;
 
@@ -122,7 +121,7 @@ using namespace bsl;
 // [15] Date operator+(int numDays, const Date& date);
 // [15] Date operator-(const Date& date, int numDays);
 // [16] int operator-(const Date& lhs, const Date& rhs);
-// [20] hashAppend(HASHALG& hashAlg, const Date& date);
+// [20] void hashAppend(HASHALG&, const Date&);
 // ----------------------------------------------------------------------------
 // [ 1] BREATHING TEST
 // [21] USAGE EXAMPLE
@@ -206,7 +205,6 @@ typedef bslx::TestInStream  In;
 typedef bslx::TestOutStream Out;
 
 #define VERSION_SELECTOR 20140601
-
 
 // ============================================================================
 //                                 TYPE TRAITS
@@ -303,7 +301,9 @@ const AltDataRow ALT_DATA[] =
 
     { L_,    1999,   59,   2000,   58,       364 },
 
+#ifdef BDE_USE_PROLEPTIC_DATES
     { L_,    1000,    1,   1001,    1,       365 },
+#endif
     { L_,    1998,   59,   1999,   59,       365 },
 
     { L_,    1200,    1,   1201,    1,       366 },
@@ -313,7 +313,9 @@ const AltDataRow ALT_DATA[] =
 
     { L_,    1999,   59,   2002,   59,      1096 },
 
+#ifdef BDE_USE_PROLEPTIC_DATES
     { L_,       1,    1,   9999,  365,   3652058 },
+#endif
 };
 const int ALT_NUM_DATA = static_cast<int>(sizeof ALT_DATA / sizeof *ALT_DATA);
 
@@ -459,7 +461,7 @@ if (verbose)
         //    not.
         //
         // Testing:
-        //     hashAppend(HASHALG& hashAlg, const Date&  date);
+        //    void hashAppend(HASHALG&, const Date&);
         // --------------------------------------------------------------------
         if (verbose) cout << "\nTESTING 'hashAppend'"
                           << "\n====================\n";
@@ -654,7 +656,9 @@ if (verbose)
                 { L_,       1,     1,    INT_MIN },
                 { L_,    9999,   365,    INT_MIN },
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,    9999,   365,   -3652059 },
+#endif
 
                 { L_,       1,   365,       -365 },
                 { L_,       2,     1,       -366 },
@@ -677,7 +681,9 @@ if (verbose)
 
                 { L_,    9998,   365,        366 },
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,       1,     1,    3652059 },
+#endif
 
                 { L_,       1,     1,    INT_MAX },
                 { L_,    9999,   365,    INT_MAX },
@@ -801,6 +807,24 @@ if (verbose)
             { L_,    2014,     10,    1,   DOW::e_WED,           MOY::e_OCT },
             { L_,    2014,     11,    1,   DOW::e_SAT,           MOY::e_NOV },
             { L_,    2014,     12,    1,   DOW::e_MON,           MOY::e_DEC },
+
+            { L_,    2016,      2,   29,   DOW::e_MON,           MOY::e_FEB },
+            { L_,    2020,      2,   29,   DOW::e_SAT,           MOY::e_FEB },
+            { L_,    2024,      2,   29,   DOW::e_THU,           MOY::e_FEB },
+            { L_,    2028,      2,   29,   DOW::e_TUE,           MOY::e_FEB },
+            { L_,    2032,      2,   29,   DOW::e_SUN,           MOY::e_FEB },
+            { L_,    2036,      2,   29,   DOW::e_FRI,           MOY::e_FEB },
+            { L_,    2040,      2,   29,   DOW::e_WED,           MOY::e_FEB },
+            { L_,    2044,      2,   29,   DOW::e_MON,           MOY::e_FEB },
+            { L_,    2048,      2,   29,   DOW::e_SAT,           MOY::e_FEB },
+            { L_,    2052,      2,   29,   DOW::e_THU,           MOY::e_FEB },
+            { L_,    2056,      2,   29,   DOW::e_TUE,           MOY::e_FEB },
+            { L_,    2060,      2,   29,   DOW::e_SUN,           MOY::e_FEB },
+            { L_,    2064,      2,   29,   DOW::e_FRI,           MOY::e_FEB },
+            { L_,    2068,      2,   29,   DOW::e_WED,           MOY::e_FEB },
+            { L_,    2072,      2,   29,   DOW::e_MON,           MOY::e_FEB },
+            { L_,    2076,      2,   29,   DOW::e_SAT,           MOY::e_FEB },
+            { L_,    2080,      2,   29,   DOW::e_THU,           MOY::e_FEB },
         };
         const int NUM_DATA = static_cast<int>(sizeof DATA / sizeof *DATA);
 
@@ -816,6 +840,11 @@ if (verbose)
                 T_ P_(LINE) P_(YEAR) P_(MONTH) P_(DAY) P_(EXP_DOW) P(EXP_MOY)
             }
 
+#ifndef BDE_USE_PROLEPTIC_DATES
+            if (YEAR <= 1752) {
+                continue;
+            }
+#endif
 
             const Obj X(YEAR, MONTH, DAY);
 
@@ -1504,10 +1533,14 @@ if (verbose)
                     Obj mX(V);  ASSERT_SAFE_PASS(mX +=        0);
                     Obj mY(V);  ASSERT_SAFE_FAIL(mY +=       -1);
                 }
-
                 {
+#ifdef BDE_USE_PROLEPTIC_DATES
                     Obj mX(V);  ASSERT_SAFE_PASS(mX +=  3652058);
                     Obj mY(V);  ASSERT_SAFE_FAIL(mY +=  3652059);
+#else
+                    Obj mX(V);  ASSERT_SAFE_PASS(mX +=  3652060);
+                    Obj mY(V);  ASSERT_SAFE_FAIL(mY +=  3652061);
+#endif
                 }
 
                 const Obj W(9999, 365);
@@ -1517,8 +1550,13 @@ if (verbose)
                 }
 
                 {
+#ifdef BDE_USE_PROLEPTIC_DATES
                     Obj mX(W);  ASSERT_SAFE_PASS(mX += -3652058);
                     Obj mY(W);  ASSERT_SAFE_FAIL(mY += -3652059);
+#else
+                    Obj mX(W);  ASSERT_SAFE_PASS(mX += -3652060);
+                    Obj mY(W);  ASSERT_SAFE_FAIL(mY += -3652061);
+#endif
                 }
             }
 
@@ -1531,8 +1569,13 @@ if (verbose)
                 }
 
                 {
+#ifdef BDE_USE_PROLEPTIC_DATES
                     Obj mX(V);  ASSERT_SAFE_PASS(mX -= -3652058);
                     Obj mY(V);  ASSERT_SAFE_FAIL(mY -= -3652059);
+#else
+                    Obj mX(V);  ASSERT_SAFE_PASS(mX -= -3652060);
+                    Obj mY(V);  ASSERT_SAFE_FAIL(mY -= -3652061);
+#endif
                 }
 
                 const Obj W(9999, 365);
@@ -1542,8 +1585,13 @@ if (verbose)
                 }
 
                 {
+#ifdef BDE_USE_PROLEPTIC_DATES
                     Obj mX(W);  ASSERT_SAFE_PASS(mX -=  3652058);
                     Obj mY(W);  ASSERT_SAFE_FAIL(mY -=  3652059);
+#else
+                    Obj mX(W);  ASSERT_SAFE_PASS(mX -=  3652060);
+                    Obj mY(W);  ASSERT_SAFE_FAIL(mY -=  3652061);
+#endif
                 }
             }
 
@@ -1554,16 +1602,26 @@ if (verbose)
                 ASSERT_SAFE_PASS(V +        0);
                 ASSERT_SAFE_FAIL(V +       -1);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS(V +  3652058);
                 ASSERT_SAFE_FAIL(V +  3652059);
+#else
+                ASSERT_SAFE_PASS(V +  3652060);
+                ASSERT_SAFE_FAIL(V +  3652061);
+#endif
 
                 const Obj W(9999, 365);
 
                 ASSERT_SAFE_PASS(W +        0);
                 ASSERT_SAFE_FAIL(W +        1);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS(W + -3652058);
                 ASSERT_SAFE_FAIL(W + -3652059);
+#else
+                ASSERT_SAFE_PASS(W + -3652060);
+                ASSERT_SAFE_FAIL(W + -3652061);
+#endif
             }
 
             if (verbose) cout << "\t'operator+(int, Date)'" << endl;
@@ -1573,16 +1631,26 @@ if (verbose)
                 ASSERT_SAFE_PASS(       0 + V);
                 ASSERT_SAFE_FAIL(      -1 + V);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS( 3652058 + V);
                 ASSERT_SAFE_FAIL( 3652059 + V);
+#else
+                ASSERT_SAFE_PASS( 3652060 + V);
+                ASSERT_SAFE_FAIL( 3652061 + V);
+#endif
 
                 const Obj W(9999, 365);
 
                 ASSERT_SAFE_PASS(       0 + W);
                 ASSERT_SAFE_FAIL(       1 + W);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS(-3652058 + W);
                 ASSERT_SAFE_FAIL(-3652059 + W);
+#else
+                ASSERT_SAFE_PASS(-3652060 + W);
+                ASSERT_SAFE_FAIL(-3652061 + W);
+#endif
             }
 
             if (verbose) cout << "\t'operator-(Date, int)'" << endl;
@@ -1592,16 +1660,26 @@ if (verbose)
                 ASSERT_SAFE_PASS(V -        0);
                 ASSERT_SAFE_FAIL(V -        1);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS(V - -3652058);
                 ASSERT_SAFE_FAIL(V - -3652059);
+#else
+                ASSERT_SAFE_PASS(V - -3652060);
+                ASSERT_SAFE_FAIL(V - -3652061);
+#endif
 
                 const Obj W(9999, 365);
 
                 ASSERT_SAFE_PASS(W -        0);
                 ASSERT_SAFE_FAIL(W -       -1);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
                 ASSERT_SAFE_PASS(W -  3652058);
                 ASSERT_SAFE_FAIL(W -  3652059);
+#else
+                ASSERT_SAFE_PASS(W -  3652060);
+                ASSERT_SAFE_FAIL(W -  3652061);
+#endif
             }
         }
 
@@ -1770,7 +1848,9 @@ if (verbose)
                 { L_,       4,  366,      5,    1 },
                 { L_,      10,   59,     10,   60 },
                 { L_,     100,   90,    100,   91 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,     100,  365,    101,    1 },
+#endif
                 { L_,     400,   59,    400,   60 },
                 { L_,     400,   60,    400,   61 },
                 { L_,     400,  366,    401,    1 },
@@ -2120,7 +2200,9 @@ if (verbose)
                 { L_,        100,        0,     0 },
                 { L_,        100,        1,     1 },
                 { L_,        100,      365,     1 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,        100,      366,     0 },
+#endif
 
                 { L_,        400,        0,     0 },
                 { L_,        400,        1,     1 },
@@ -2130,7 +2212,9 @@ if (verbose)
                 { L_,       1000,        0,     0 },
                 { L_,       1000,        1,     1 },
                 { L_,       1000,      365,     1 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,       1000,      366,     0 },
+#endif
 
                 { L_,       9999,  INT_MIN,     0 },
                 { L_,       9999,        0,     0 },
@@ -2219,14 +2303,18 @@ if (verbose)
                 { L_,          4,        2,       30,     0 },
 
                 { L_,        100,        2,       28,     1 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,        100,        2,       29,     0 },
+#endif
 
                 { L_,        400,        2,       28,     1 },
                 { L_,        400,        2,       29,     1 },
                 { L_,        400,        2,       30,     0 },
 
                 { L_,       1000,        2,       28,     1 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,       1000,        2,       29,     0 },
+#endif
 
                 { L_,       2003,        1,       31,     1 },
                 { L_,       2003,        1,       32,     0 },
@@ -2289,6 +2377,24 @@ if (verbose)
 
                 { L_,      10000,        1,        1,     0 },
                 { L_,    INT_MAX,        1,        1,     0 },
+
+                { L_,       2016,        2,       29,     1 },
+                { L_,       2020,        2,       29,     1 },
+                { L_,       2024,        2,       29,     1 },
+                { L_,       2028,        2,       29,     1 },
+                { L_,       2032,        2,       29,     1 },
+                { L_,       2036,        2,       29,     1 },
+                { L_,       2040,        2,       29,     1 },
+                { L_,       2044,        2,       29,     1 },
+                { L_,       2048,        2,       29,     1 },
+                { L_,       2052,        2,       29,     1 },
+                { L_,       2056,        2,       29,     1 },
+                { L_,       2060,        2,       29,     1 },
+                { L_,       2064,        2,       29,     1 },
+                { L_,       2068,        2,       29,     1 },
+                { L_,       2072,        2,       29,     1 },
+                { L_,       2076,        2,       29,     1 },
+                { L_,       2080,        2,       29,     1 },
             };
             const int NUM_DATA = static_cast<int>(sizeof DATA / sizeof *DATA);
 
@@ -2448,16 +2554,22 @@ if (verbose)
                 { L_,       2,    1,      1,        1 },
                 { L_,      10,   95,      4,        5 },
                 { L_,      10,  284,     10,       11 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,     100,  158,      6,        7 },
                 { L_,     100,  316,     11,       12 },
                 { L_,    1000,  221,      8,        9 },
+#endif
                 { L_,    1100,   31,      1,       31 },
                 { L_,    1200,   60,      2,       29 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,    1300,   90,      3,       31 },
                 { L_,    1400,  120,      4,       30 },
                 { L_,    1500,  151,      5,       31 },
+#endif
                 { L_,    1600,  182,      6,       30 },
+#ifdef BDE_USE_PROLEPTIC_DATES
                 { L_,    1700,  212,      7,       31 },
+#endif
                 { L_,    1800,  243,      8,       31 },
                 { L_,    1900,  273,      9,       30 },
                 { L_,    2000,  305,     10,       31 },
@@ -3286,7 +3398,11 @@ if (verbose)
         ASSERT(W != Y);
         ASSERT(X != Y);
 
+#ifdef BDE_USE_PROLEPTIC_DATES
         const int SERIAL_Y = 733;   // streamed rep. of 'Y'
+#else
+        const int SERIAL_Y = 731;   // streamed rep. of 'Y'
+#endif
 
         if (verbose) {
             cout << "\t\tGood stream (for control)." << endl;
@@ -3518,7 +3634,6 @@ if (verbose)
                 }
             }
         }
-
 
       } break;
       case 9: {

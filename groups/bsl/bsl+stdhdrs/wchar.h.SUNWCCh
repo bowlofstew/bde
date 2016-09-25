@@ -30,11 +30,11 @@ BSLS_IDENT("$Id: $")
 
 #if !defined(BSL_OVERRIDES_STD) || !defined(__cplusplus)
 
-#   ifndef INCLUDED_BSL_STDHDRS_INCPATH
+#   ifndef INCLUDED_BSL_STDHDRS_INCPATHS
 #   include <bsl_stdhdrs_incpaths.h>
 #   endif
 
-#   include BSL_NATIVE_C_LIB_HEADER(wchar.h)
+#   include BSL_NATIVE_OS_RTL_HEADER(wchar.h)
 
 #else  /* defined(BSL_OVERRIDES_STD) */
 
@@ -47,11 +47,11 @@ BSLS_IDENT("$Id: $")
 #   define BSL_STDHDRS_EPILOGUE_RUN_BY_c_wchar
 #   endif
 
-#   ifndef INCLUDED_BSL_STDHDRS_INCPATH
+#   ifndef INCLUDED_BSL_STDHDRS_INCPATHS
 #   include <bsl_stdhdrs_incpaths.h>
 #   endif
 
-#   include BSL_NATIVE_C_LIB_HEADER(wchar.h)
+#   include BSL_NATIVE_OS_RTL_HEADER(wchar.h)
 
 // This native header does not define any symbols in namespace 'std' to import,
 // so the following include is not necessary:

@@ -1,4 +1,4 @@
-// bsls_macrorepeat.h                  -*-C++-*-
+// bsls_macrorepeat.h                                                 -*-C++-*-
 #ifndef INCLUDED_BSLS_MACROREPEAT
 #define INCLUDED_BSLS_MACROREPEAT
 
@@ -7,33 +7,34 @@
 #endif
 BSLS_IDENT("$Id: $")
 
-//@PURPOSE: repreat a macro invocation with different numeric arguments
+//@PURPOSE: repeat a macro invocation with different numeric arguments.
 //
 //@CLASSES:
+//
+//@MACROS:
 // BSLS_MACROREPEAT(N, MACRO): Invoke 'MACRO(1) MACRO(2) ... MACRO(N)'
 // BSLS_MACROREPEAT_COMMA(N, MACRO): 'N' comma-separated invocations of 'MACRO'
 // BSLS_MACROREPEAT_SEP(N, MACRO, S): 'N' invocations of 'MACRO' separated by S
 //
 //@SEE_ALSO:
 //
-//@DESCRIPTION: This component provides a set of macros that expand to
-// multiple repetitions of a user-specified "repetition phrase".  The
-// repetition phrase is specified as macro which is invoked multiple times in
-// each invocation of a 'BSLS_MACROREPEAT*' macro.  For example:
+//@DESCRIPTION: This component provides a set of macros that expand to multiple
+// repetitions of a user-specified "repetition phrase".  The repetition phrase
+// is specified as macro that is invoked multiple times in each invocation of a
+// 'BSLS_MACROREPEAT*' macro.  For example:
 //..
 //  #define FOO(n) foo ## n
 //  doit(BSLS_MACROREPEAT_COMMA(5, FOO));
 //..
-// will expand FOO(n) with arguments 1 through 5, inserting commas beteween
-// the expansions, resulting in:
+// will expand FOO(n) with arguments 1 through 5, inserting commas between the
+// expansions, resulting in:
 //..
 //  doit(foo1, foo2, foo3, foo4, foo5);
 //..
-// Use of these macros is less error-prone and often more compact than
-// manually repeating the specified pattern.  In addition, it is sometimes
-// more readable than the cut-and-paste alternative because the reader does
-// not need to examine each argument to verify that it forms a linear
-// sequence.
+// Use of these macros is less error-prone and often more compact than manually
+// repeating the specified pattern.  In addition, it is sometimes more readable
+// than the cut-and-paste alternative because the reader does not need to
+// examine each argument to verify that it forms a linear sequence.
 //
 // Each of these macros can appear within the repetition phrase of another of
 // these macros but, because of limitations in the C proprocessor language,
@@ -47,18 +48,18 @@ BSLS_IDENT("$Id: $")
 //
 ///Example 1: Repeated Template Instantiation
 /// - - - - - - - - - - - - - - - - - - - - -
-// In this example, we wish to explictly instantiate a template with a
-// sequence of integer values.  First, assume a function template 'foo<V>'
-// that adds the (compile-time) value 'V' to a global 'total' each time it is
+// In this example, we wish to explicitly instantiate a template with a
+// sequence of integer values.  First, assume a function template 'foo<V>' that
+// adds the (compile-time) value 'V' to a global 'total' each time it is
 // called:
 //..
 //  int total = 0;
 //  template <int V> void foo() { total += V; }
 //..
 // Now, if we instantiate and call 'foo<X>()' once for each 'X' in the range
-// '2' to '6'.  To do that, we create a macro, 'FOO_STMNT(X)' which
-// and calls 'foo<X+1>' (i.e., 'FOO_STMNT(1)' will call 'foo<2>()'). Then
-// we invoke 'FOO_STMNT' 5 times with arguments 1, 2, 3, 4, and 5 using the
+// '2' to '6'.  To do that, we create a macro, 'FOO_STMNT(X)' which and calls
+// 'foo<X+1>' (i.e., 'FOO_STMNT(1)' will call 'foo<2>()').  Then we invoke
+// 'FOO_STMNT' 5 times with arguments 1, 2, 3, 4, and 5 using the
 // 'BSLS_MACROREPEAT' macro:
 //..
 //  int main() {
@@ -85,10 +86,10 @@ BSLS_IDENT("$Id: $")
 //  }
 //..
 // Now we wish to invoke this function, but in a context where the last three
-// arguments are always the same as each other.  For this situation we define
-// a macro 'X(x)' that ignores its argument and simply expands to an
-// unchanging set of tokens. If the repeated argument is named 'i', then the
-// expansion of 'X(x)' is simply '(i)':
+// arguments are always the same as each other.  For this situation we define a
+// macro 'X(x)' that ignores its argument and simply expands to an unchanging
+// set of tokens.  If the repeated argument is named 'i', then the expansion of
+// 'X(x)' is simply '(i)':
 //..
 //  int main() {
 //      char buffer[20];
@@ -125,22 +126,22 @@ BSLS_IDENT("$Id: $")
 //..
 
 #define BSLS_MACROREPEAT(N, MACRO) BSLS_MACROREPEAT_##N(MACRO)
-    // Expand to 'N' invocations of 'MACRO(x)', where 'x' in each invocation
-    // is the next number in the sequence from '1' to 'N'.  If 'N' is '0',
-    // then the expansion is empty.  For example 'BSLS_MACROREPEAT(3, XYZ)'
-    // expands to 'XYZ(1) XYZ(2) XYZ(3)'.  The behavior is undefined unless
-    // 'N' is a decimal integer (or is a macro that expands to a decimal
-    // integer) in the range 0 to 20.  Note that 'MACRO' is typically a macro
-    // with one argument, but may also be a function or functor.
+    // Expand to 'N' invocations of 'MACRO(x)', where 'x' in each invocation is
+    // the next number in the sequence from '1' to 'N'.  If 'N' is '0', then
+    // the expansion is empty.  For example 'BSLS_MACROREPEAT(3, XYZ)' expands
+    // to 'XYZ(1) XYZ(2) XYZ(3)'.  The behavior is undefined unless 'N' is a
+    // decimal integer (or is a macro that expands to a decimal integer) in the
+    // range 0 to 20.  Note that 'MACRO' is typically a macro with one
+    // argument, but may also be a function or functor.
 
 #define BSLS_MACROREPEAT_COMMA(N, MACRO) BSLS_MACROREPEAT_C##N(MACRO)
     // Expand to 'N' comma-separated invocations of 'MACRO(x)', where 'x' in
     // each invocation is the next number in the sequence from '1' to 'N'.  If
     // 'N' is '0', then the expansion is empty.  For example
     // 'BSLS_MACROREPEAT_COMMA(3, XYZ)' expands to 'XYZ(1), XYZ(2), XYZ(3)'.
-    // The behavior is undefined unless 'N' is a decimal integer (or is a
-    // macro that expands to a decimal integer) in the range 0 to 20.  Note
-    // that 'MACRO' is typically a macro with one argument, but may also be a
+    // The behavior is undefined unless 'N' is a decimal integer (or is a macro
+    // that expands to a decimal integer) in the range 0 to 20.  Note that
+    // 'MACRO' is typically a macro with one argument, but may also be a
     // function or functor.
 
 #define BSLS_MACROREPEAT_SEP(N, MACRO, S) BSLS_MACROREPEAT_S##N(MACRO, S)
@@ -226,23 +227,17 @@ BSLS_IDENT("$Id: $")
 #endif // ! defined(INCLUDED_BSLS_MACROREPEAT)
 
 // ----------------------------------------------------------------------------
-// Copyright (C) 2013 Bloomberg L.P.
+// Copyright 2013 Bloomberg Finance L.P.
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 // ----------------------------- END-OF-FILE ----------------------------------

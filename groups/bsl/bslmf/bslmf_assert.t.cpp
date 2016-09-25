@@ -15,47 +15,78 @@
 //                                --------
 //-----------------------------------------------------------------------------
 // [ 1] BSLMF_ASSERT(expr)i
-//
 // ----------------------------------------------------------------------------
 // [  ] USAGE EXAMPLE
+// [ 2] CONCERN: BSLMF_ASSERT in non-instantiated template classes
 
-//=============================================================================
-//
-//                       STANDARD BDE ASSERT TEST MACRO
-//-----------------------------------------------------------------------------
-// NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
-// FUNCTIONS, INCLUDING IOSTREAMS.
-static int testStatus = 0;
+// ============================================================================
+//                     STANDARD BSL ASSERT TEST FUNCTION
+// ----------------------------------------------------------------------------
 
-void aSsErT(bool b, const char *s, int i)
+namespace {
+
+int testStatus = 0;
+
+void aSsErT(bool condition, const char *message, int line)
 {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
-# define ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
+}  // close unnamed namespace
 
-//=============================================================================
-//                       STANDARD BDE TEST DRIVER MACROS
-//-----------------------------------------------------------------------------
+// ============================================================================
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
+// ----------------------------------------------------------------------------
+
+#define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
+#define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
+#define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
 #define LOOP2_ASSERT BSLS_BSLTESTUTIL_LOOP2_ASSERT
 #define LOOP3_ASSERT BSLS_BSLTESTUTIL_LOOP3_ASSERT
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 //=============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
 //-----------------------------------------------------------------------------
+
+namespace BloombergLP {
+namespace bslmftest {
+
+                           // ======================
+                           // class SomeTemplateType
+                           // ======================
+
+template <class SOME_TYPE>
+class SomeTemplateType {
+    // This specialization of 'SomeTemplateType' defines an alias 'Type' for a
+    // functor that delegates to a function pointer matching the parameterized
+    // 'SOME_TYPE' type.
+
+    BSLMF_ASSERT(4 == sizeof(SOME_TYPE));
+        // This 'BSLMF_ASSERT' statement ensures that the parameter 'SOME_TYPE'
+        // must be a function pointer.
+};
+
+}  // close package namespace
+}  // close enterprise namespace
+
 
 // namespace scope
 
@@ -113,13 +144,56 @@ void MyType::foo()
 
 int main(int argc, char *argv[])
 {
-    int test = argc > 1 ? atoi(argv[1]) : 0;
-    bool verbose = argc > 2;
-    // bool veryVerbose = argc > 3;
+    int                 test = argc > 1 ? atoi(argv[1]) : 0;
+    bool             verbose = argc > 2;
+    bool         veryVerbose = argc > 3;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
+
+    (void)veryVerbose;          // suppress warning
+    (void)veryVeryVerbose;      // suppress warning
+    (void)veryVeryVeryVerbose;  // suppress warning
+
+    setbuf(stdout, NULL);       // Use unbuffered output
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 
     switch (test) { case 0:  // Zero is always the leading case.
+      case 2: {
+        // --------------------------------------------------------------------
+        // BSLMF_ASSERT MACRO WITHIN TEMPLATE CLASS
+        //   Sun Studio has historically required a special implementation of
+        //   'BSMF_ASSERT'.  According to DRQS 79918675, starting with Sun
+        //   Studio 12.4 the special implementation causes build failures by
+        //   its mere presence in a templatized class, even if that class is
+        //   never instantiated.  On the other hand, Sun Studio 12.4 has
+        //   improved template instantiation, and therefore does not need the
+        //   special implementation.  This test case checks that the case
+        //   reported in DRQS 79918675 is fixed by switching to the standard
+        //   implementation on versions 12.4 and better.
+        //
+        // Concerns:
+        //  1 Uses of BSLMF_ASSERT in non-instantiated templates does not cause
+        //    a build failure when the assertion depends on a template
+        //    parameter.
+        //
+        // Plan:
+        //  1 Create a template class having an assertion dependent on the
+        //    template parameter, but do not instantiate the class.  If the code
+        //    builds on Sun Studio 12.4, the test passes.  (C-1)
+        //
+        // Testing:
+        //   CONCERN: BSLMF_ASSERT in non-instantiated template classes
+        // --------------------------------------------------------------------
+
+        if (verbose) printf("\nBSLMF_ASSERT MACRO WITHIN TEMPLATE CLASS"
+                            "\n========================================\n");
+
+        // Do nothing.  The test is entirely encapsulated in the definition of
+        // 'SomeTemplateType' above.
+
+        ASSERT(true);
+      } break;
       case 1: {
         // --------------------------------------------------------------------
         // TESTING BSLMF_ASSERT MACRO
@@ -137,13 +211,13 @@ int main(int argc, char *argv[])
         //   BSLMF_ASSERT(expr)
         // --------------------------------------------------------------------
 
-        if (verbose) printf("\nBSLMF_ASSERT Macro\n"
+        if (verbose) printf("\nBSLMF_ASSERT Macro"
                             "\n==================\n");
 
         BSLMF_ASSERT(sizeof(int) >= sizeof(char));
         BSLMF_ASSERT(sizeof(int) >= sizeof(char));
-        BSLMF_ASSERT(1);  ASSERT(145 == __LINE__);
-        BSLMF_ASSERT(1);  ASSERT(146 == __LINE__);
+        BSLMF_ASSERT(1);  ASSERT(219 == __LINE__);
+        BSLMF_ASSERT(1);  ASSERT(220 == __LINE__);
         BSLMF_ASSERT(1 > 0 && 1);
 
 // MSVC: __LINE__ macro breaks when /ZI is used (see Q199057 or KB199057)
@@ -153,8 +227,8 @@ int main(int argc, char *argv[])
     !defined(BSLS_PLATFORM_CMP_MSVC) &&                      \
     !defined(BSLS_PLATFORM_CMP_SUN)  &&                      \
     !(defined(BSLS_PLATFORM_CMP_GNU) && BSLS_PLATFORM_CMP_VER_MAJOR > 40800)
-        bslmf_Assert_145 t1; // test typedef name creation; matches above line
-        bslmf_Assert_146 t2; // test typedef name creation; matches above line
+        bslmf_Assert_219 t1; // test typedef name creation; matches above line
+        bslmf_Assert_220 t2; // test typedef name creation; matches above line
         ASSERT(sizeof t1 == sizeof t2);  // use t1 and t2
 #endif
 

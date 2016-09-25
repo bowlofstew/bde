@@ -10,6 +10,7 @@
 
 #include <btlmt_channelstatus.h>
 
+#include <bdlsb_fixedmemoutstreambuf.h>
 #include <btlb_blob.h>
 #include <bslma_default.h>
 #include <bslma_defaultallocatorguard.h>
@@ -19,7 +20,6 @@
 #include <bsl_cstring.h>       // 'strcmp', 'memcmp', 'memcpy'
 #include <bsl_ios.h>
 #include <bsl_iostream.h>
-#include <bsl_strstream.h>
 
 #include <bsls_assert.h>
 #include <bsls_asserttest.h>
@@ -233,12 +233,7 @@ int main(int argc, char *argv[])
 
           // We handle the different types of failures in the cases below.
 
-          case btlmt::ChannelStatus::e_CACHE_OVERFLOW: {
-
-              // ...
-
-          } break;
-          case btlmt::ChannelStatus::e_CACHE_HIGHWATER: {
+          case btlmt::ChannelStatus::e_QUEUE_HIGHWATER: {
 
               // ...
 
@@ -308,8 +303,7 @@ int main(int argc, char *argv[])
         //line lvl spl enumerator                     result
         //---- --- --- -----------------------------  ----------------------
         { L_,   0,  4, Obj::e_SUCCESS,            "SUCCESS" NL           },
-        { L_,   0,  4, Obj::e_CACHE_OVERFLOW,     "CACHE_OVERFLOW" NL    },
-        { L_,   0,  4, Obj::e_CACHE_HIGHWATER,    "CACHE_HIGHWATER" NL   },
+        { L_,   0,  4, Obj::e_QUEUE_HIGHWATER,    "QUEUE_HIGHWATER" NL   },
         { L_,   0,  4, Obj::e_READ_CHANNEL_DOWN,  "READ_CHANNEL_DOWN" NL },
         { L_,   0,  4, Obj::e_WRITE_CHANNEL_DOWN, "WRITE_CHANNEL_DOWN" NL},
         { L_,   0,  4, Obj::e_ENQUEUE_HIGHWATER,  "ENQUEUE_HIGHWATER" NL },
@@ -347,7 +341,8 @@ int main(int argc, char *argv[])
 
             memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char' values.
 
-            ostrstream out(buf, sizeof buf);
+            bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+            bsl::ostream out(&obuf);
 
             Obj::print(out, ENUM, LEVEL, SPL) << ends;
 
@@ -369,7 +364,8 @@ int main(int argc, char *argv[])
                 memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char'
                                           // values.
 
-                ostrstream out(buf, sizeof buf);
+                bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+                bsl::ostream out(&obuf);
                 Obj::print(out, ENUM) << ends;
 
                 ASSERTV(LINE, ti,  0 == memcmp(buf, STR, SZ));
@@ -391,7 +387,9 @@ int main(int argc, char *argv[])
 
             memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char' values.
 
-            ostrstream out(buf, sizeof buf);  out.setstate(ios::badbit);
+            bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+            bsl::ostream out(&obuf);
+            out.setstate(ios::badbit);
             Obj::print(out, ENUM, LEVEL, SPL);
 
             LOOP2_ASSERT(LINE, ti, 0 == memcmp(buf, CTRL, SIZE));
@@ -462,8 +460,7 @@ int main(int argc, char *argv[])
             //line  enumerator                      result
             //----  ------------------------------  --------------------
             { L_,   Obj::e_SUCCESS,             "SUCCESS"            },
-            { L_,   Obj::e_CACHE_OVERFLOW,      "CACHE_OVERFLOW"     },
-            { L_,   Obj::e_CACHE_HIGHWATER,     "CACHE_HIGHWATER"    },
+            { L_,   Obj::e_QUEUE_HIGHWATER,     "QUEUE_HIGHWATER"    },
             { L_,   Obj::e_READ_CHANNEL_DOWN,   "READ_CHANNEL_DOWN"  },
             { L_,   Obj::e_WRITE_CHANNEL_DOWN,  "WRITE_CHANNEL_DOWN" },
             { L_,   Obj::e_ENQUEUE_HIGHWATER,   "ENQUEUE_HIGHWATER"  },
@@ -489,7 +486,8 @@ int main(int argc, char *argv[])
 
             memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char' values.
 
-            ostrstream out(buf, sizeof buf);
+            bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+            bsl::ostream out(&obuf);
 
             out << ENUM << ends;
 
@@ -511,7 +509,8 @@ int main(int argc, char *argv[])
                 memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char'
                                           // values.
 
-                ostrstream out(buf, sizeof buf);
+                bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+                bsl::ostream out(&obuf);
                 Obj::print(out, ENUM, 0, -1) << ends;
 
                 ASSERTV(LINE, ti,  0 == memcmp(buf, STR, SZ));
@@ -531,7 +530,9 @@ int main(int argc, char *argv[])
 
             memcpy(buf, CTRL, SIZE);  // Preset 'buf' to unset 'char' values.
 
-            ostrstream out(buf, sizeof buf);  out.setstate(ios::badbit);
+            bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+            bsl::ostream out(&obuf);
+            out.setstate(ios::badbit);
             out << ENUM;
 
             LOOP2_ASSERT(LINE, ti, 0 == memcmp(buf, CTRL, SIZE));
@@ -602,8 +603,7 @@ int main(int argc, char *argv[])
          //line  enumerator                      value  ascii
          //----  ------------------------------  -----  --------------------
          { L_,   Obj::e_SUCCESS,                0,  "SUCCESS"            },
-         { L_,   Obj::e_CACHE_OVERFLOW,        -1,  "CACHE_OVERFLOW"     },
-         { L_,   Obj::e_CACHE_HIGHWATER,       -2,  "CACHE_HIGHWATER"    },
+         { L_,   Obj::e_QUEUE_HIGHWATER,       -2,  "QUEUE_HIGHWATER"    },
          { L_,   Obj::e_READ_CHANNEL_DOWN,     -6,  "READ_CHANNEL_DOWN"  },
          { L_,   Obj::e_WRITE_CHANNEL_DOWN,    -3,  "WRITE_CHANNEL_DOWN" },
          { L_,   Obj::e_ENQUEUE_HIGHWATER,     -4,  "ENQUEUE_HIGHWATER"  },

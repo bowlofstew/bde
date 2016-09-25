@@ -2,9 +2,9 @@
 
 #include <bbldc_basicdaycountutil.h>
 
-#include <bdls_testutil.h>
-
 #include <bdlt_date.h>
+
+#include <bslim_testutil.h>
 
 #include <bsls_assert.h>
 #include <bsls_asserttest.h>
@@ -58,23 +58,23 @@ void aSsErT(bool condition, const char *message, int line)
 //               STANDARD BDE TEST DRIVER MACRO ABBREVIATIONS
 // ----------------------------------------------------------------------------
 
-#define ASSERT       BDLS_TESTUTIL_ASSERT
-#define ASSERTV      BDLS_TESTUTIL_ASSERTV
+#define ASSERT       BSLIM_TESTUTIL_ASSERT
+#define ASSERTV      BSLIM_TESTUTIL_ASSERTV
 
-#define LOOP_ASSERT  BDLS_TESTUTIL_LOOP_ASSERT
-#define LOOP0_ASSERT BDLS_TESTUTIL_LOOP0_ASSERT
-#define LOOP1_ASSERT BDLS_TESTUTIL_LOOP1_ASSERT
-#define LOOP2_ASSERT BDLS_TESTUTIL_LOOP2_ASSERT
-#define LOOP3_ASSERT BDLS_TESTUTIL_LOOP3_ASSERT
-#define LOOP4_ASSERT BDLS_TESTUTIL_LOOP4_ASSERT
-#define LOOP5_ASSERT BDLS_TESTUTIL_LOOP5_ASSERT
-#define LOOP6_ASSERT BDLS_TESTUTIL_LOOP6_ASSERT
+#define LOOP_ASSERT  BSLIM_TESTUTIL_LOOP_ASSERT
+#define LOOP0_ASSERT BSLIM_TESTUTIL_LOOP0_ASSERT
+#define LOOP1_ASSERT BSLIM_TESTUTIL_LOOP1_ASSERT
+#define LOOP2_ASSERT BSLIM_TESTUTIL_LOOP2_ASSERT
+#define LOOP3_ASSERT BSLIM_TESTUTIL_LOOP3_ASSERT
+#define LOOP4_ASSERT BSLIM_TESTUTIL_LOOP4_ASSERT
+#define LOOP5_ASSERT BSLIM_TESTUTIL_LOOP5_ASSERT
+#define LOOP6_ASSERT BSLIM_TESTUTIL_LOOP6_ASSERT
 
-#define Q            BDLS_TESTUTIL_Q   // Quote identifier literally.
-#define P            BDLS_TESTUTIL_P   // Print identifier and value.
-#define P_           BDLS_TESTUTIL_P_  // P(X) without '\n'.
-#define T_           BDLS_TESTUTIL_T_  // Print a tab (w/o newline).
-#define L_           BDLS_TESTUTIL_L_  // current Line number
+#define Q            BSLIM_TESTUTIL_Q   // Quote identifier literally.
+#define P            BSLIM_TESTUTIL_P   // Print identifier and value.
+#define P_           BSLIM_TESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLIM_TESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLIM_TESTUTIL_L_  // current Line number
 
 // ============================================================================
 //                  NEGATIVE-TEST MACRO ABBREVIATIONS
@@ -97,9 +97,11 @@ typedef bbldc::DayCountConvention::Enum Enum;
 const Enum ACTUAL_360         = bbldc::DayCountConvention::e_ACTUAL_360;
 const Enum ACTUAL_365_FIXED   = bbldc::DayCountConvention::e_ACTUAL_365_FIXED;
 const Enum INVALID_CONVENTION = static_cast<Enum>(2);
+const Enum ISDA_30_360_EOM     = bbldc::DayCountConvention::e_ISDA_30_360_EOM;
 const Enum ISDA_ACTUAL_ACTUAL =
                                bbldc::DayCountConvention::e_ISDA_ACTUAL_ACTUAL;
 const Enum ISMA_30_360        = bbldc::DayCountConvention::e_ISMA_30_360;
+const Enum NL_365             = bbldc::DayCountConvention::e_NL_365;
 const Enum PSA_30_360_EOM     = bbldc::DayCountConvention::e_PSA_30_360_EOM;
 const Enum SIA_30_360_EOM     = bbldc::DayCountConvention::e_SIA_30_360_EOM;
 const Enum SIA_30_360_NEOM    = bbldc::DayCountConvention::e_SIA_30_360_NEOM;
@@ -223,12 +225,20 @@ int main(int argc, char *argv[])
 
     { L_,   ACTUAL_365_FIXED,   1993,   12,  15, 1993,   12,  31, 0.0438356 },
     { L_,   ACTUAL_365_FIXED,   2003,    2,  28, 2004,    2,  29, 1.00274   },
+    { L_,   ACTUAL_365_FIXED,   2004,    2,  28, 2004,    3,   1, 0.00548   },
+
+    { L_,   ISDA_30_360_EOM,    1993,   12,  15, 1993,   12,  31, 0.0416667 },
+    { L_,   ISDA_30_360_EOM,    2003,    2,  28, 2004,    2,  29, 1.0000    },
 
     { L_,   ISDA_ACTUAL_ACTUAL, 1993,   12,  15, 1993,   12,  31, 0.0438356 },
     { L_,   ISDA_ACTUAL_ACTUAL, 2003,    2,  28, 2004,    2,  29, 1.0023    },
 
     { L_,   ISMA_30_360,        1993,   12,  15, 1993,   12,  31, 0.0416667 },
     { L_,   ISMA_30_360,        2003,    2,  28, 2004,    2,  29, 1.00278   },
+
+    { L_,   NL_365,             1993,   12,  15, 1993,   12,  31, 0.0438356 },
+    { L_,   NL_365,             2003,    2,  28, 2004,    2,  29, 1.00274   },
+    { L_,   NL_365,             2004,    2,  28, 2004,    3,   1, 0.00274   },
 
     { L_,   PSA_30_360_EOM,     1993,   12,  15, 1993,   12,  31, 0.0444444 },
     { L_,   PSA_30_360_EOM,     2003,    2,  28, 2004,    2,  29, 0.997222  },
@@ -375,17 +385,25 @@ int main(int argc, char *argv[])
     //line  type                year  month  day  year  month  day  numDays
     //----  ------------------  ----  -----  ---  ----  -----  ---  -------
 
-    { L_,   ISDA_ACTUAL_ACTUAL, 1993,    12,  15, 1993,    12,  31,      16 },
-    { L_,   ISDA_ACTUAL_ACTUAL, 2003,     2,  28, 2004,     2,  29,     366 },
-
     { L_,   ACTUAL_360,         1993,    12,  15, 1993,    12,  31,      16 },
     { L_,   ACTUAL_360,         2003,     2,  28, 2004,     2,  29,     366 },
 
     { L_,   ACTUAL_365_FIXED,   1993,    12,  15, 1993,    12,  31,      16 },
     { L_,   ACTUAL_365_FIXED,   2003,     2,  28, 2004,     2,  29,     366 },
 
+    { L_,   ISDA_30_360_EOM,    1993,    12,  15, 1993,    12,  31,      15 },
+    { L_,   ISDA_30_360_EOM,    2003,     2,  28, 2004,     2,  29,     360 },
+
+    { L_,   ISDA_ACTUAL_ACTUAL, 1993,    12,  15, 1993,    12,  31,      16 },
+    { L_,   ISDA_ACTUAL_ACTUAL, 2003,     2,  28, 2004,     2,  29,     366 },
+    { L_,   ISDA_ACTUAL_ACTUAL, 2004,     2,  28, 2004,     3,   1,       2 },
+
     { L_,   ISMA_30_360,        1993,    12,  15, 1993,    12,  31,      15 },
     { L_,   ISMA_30_360,        2003,     2,  28, 2004,     2,  29,     361 },
+
+    { L_,   NL_365,             1993,    12,  15, 1993,    12,  31,      16 },
+    { L_,   NL_365,             2003,     2,  28, 2004,     2,  29,     366 },
+    { L_,   NL_365,             2004,     2,  28, 2004,     3,   1,       1 },
 
     { L_,   SIA_30_360_EOM,     1993,    12,  15, 1993,    12,  31,      16 },
     { L_,   SIA_30_360_EOM,     2003,     2,  28, 2004,     2,  29,     360 },
@@ -516,8 +534,10 @@ int main(int argc, char *argv[])
             const Enum convention = static_cast<Enum>(i);
             ASSERT((   ACTUAL_360         == convention
                     || ACTUAL_365_FIXED   == convention
+                    || ISDA_30_360_EOM    == convention
                     || ISDA_ACTUAL_ACTUAL == convention
                     || ISMA_30_360        == convention
+                    || NL_365             == convention
                     || PSA_30_360_EOM     == convention
                     || SIA_30_360_EOM     == convention
                     || SIA_30_360_NEOM    == convention)
@@ -537,7 +557,7 @@ int main(int argc, char *argv[])
 }
 
 // ----------------------------------------------------------------------------
-// Copyright 2015 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

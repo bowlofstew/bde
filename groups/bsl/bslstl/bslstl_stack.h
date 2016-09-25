@@ -9,39 +9,49 @@ BSLS_IDENT("$Id: $")
 
 //@PURPOSE: Provide an STL-compliant stack class.
 //
+//@REVIEW_FOR_MASTER:
+//
 //@CLASSES:
-//   bslstl::stack: STL-compliant stack template
+//   bsl::stack: STL-compliant stack template
 //
 //@SEE_ALSO: bslstl_deque, bslstl_vector, bslstl_list, bslstl_queue,
 //           bslstl_priorityqueue
 //
-//@DESCRIPTION: This component defines a single class template 'bslstl::stack',
+//@DESCRIPTION: This component defines a single class template, 'bsl::stack',
 // a container adapter that takes an underlying container and provides a stack
 // interface which the user accesses primarily through 'push', 'pop', and 'top'
 // operations.  A 'deque' (the default), 'vector', or 'list' may be used, but
 // any container which supports 'push_back', 'pop_back', 'back', and 'size',
 // plus a template specialization 'uses_allocator::type', may be used.
 //
-///Requirements of Parametrized 'CONTAINER' Type
-///---------------------------------------------
-// This class will accept 'bsl::queue', 'bsl::vector', or 'bsl::list' as the
+// A stack meets the requirements of a container adaptor as described in the
+// C++ standard [stack].  The 'stack' implemented here adheres to the C++11
+// standard when compiled with a C++11 compiler, and makes the best
+// approximation when compiled with a C++03 compiler.  In particular, for C++03
+// we emulate move semantics, but limit forwarding (in 'emplace') to 'const'
+// lvalues, and make no effort to emulate 'noexcept' or initializer-lists.
+//
+///Requirements of Parameterized 'CONTAINER' Type
+///----------------------------------------------
+// This class can accept 'bsl::deque', 'bsl::vector', or 'bsl::list' as the
 // template parameter 'CONTAINER'.  In addition, other container classes could
-// be supplied for the CONTAINER argument, but the supplied 'CONTAINER'
+// be supplied for the 'CONTAINER' argument, but the supplied 'CONTAINER'
 // template parameter must support the following public types:
-//: o value_type
-//: o reference
-//: o const_reference
-//: o size_type
+//: o 'value_type'
+//: o 'reference'
+//: o 'const_reference'
+//: o 'size_type'
+//
 // In addition, the supplied 'CONTAINER' template parameter must support the
 // following methods, (depending on the methods of 'stack' being used):
 //: o constructors used must take a parameter of type 'allocator_type'
-//: o void push_back(const value_type&)
-//: o void pop_back()
-//: o value_type& back()
-//: o size_type size()
+//: o 'void push_back(const value_type&)'
+//: o 'void pop_back()'
+//: o 'value_type& back()'
+//: o 'size_type size()'
 //: o '==', '!=', '<', '>', '<=', '>='
 //: o 'operator='
-//: o std::swap(CONTAINER&, CONTAINER&) must work
+//: o ADL with 'std::swap' in the lookup set.
 //
 ///Note on Parameterized 'VALUE' Type
 ///----------------------------------
@@ -66,8 +76,8 @@ BSLS_IDENT("$Id: $")
 // of this type are propagated to all constructors of the underlying container.
 // In the case of container types 'bsl::deque' (the default type),
 // 'bsl::vector', and 'bsl::list', 'CONTAINER::allocator_type' is
-// 'bsl::allocator' which is implicitly convertible from 'bslma_Allocator *',
-// and which can be converted to a 'bslma_Allocator *' through the 'mechanism'
+// 'bsl::allocator' which is implicitly convertible from 'bslma::Allocator *',
+// and which can be converted to a 'bslma::Allocator *' through the 'mechanism'
 // accessor.
 //
 // Hence if the underlying container takes 'bsl::allocator', then the 'stack'
@@ -77,18 +87,20 @@ BSLS_IDENT("$Id: $")
 //
 ///Operations
 ///----------
-// This section describes the run-time complexity of operations on instances
-// of 'stack':
+// Below is a list of public methods of the 'bsl::stack' class that effectively
+// forward their implementations to corresponding operations in the held
+// container (referenced as 'c') which is here assumed to be either
+// 'bsl::deque', or 'bsl::vector', or 'bsl::list'.
 //..
 //  Legend
 //  ------
-//  'C'             - parameterized container-type of the stack
-//  'V'             - 'C::value_type'
-//  'c'             - container of type 'C'
-//  'nc'            - number of elements in container 'c'
+//  'C'             - (template parameter) type 'CONTAINER' of the stack
+//  'V'             - (template parameter) type 'VALUE'     of the stack
 //  's', 't'        - two distinct objects of type 'stack<V, C>'
-//  'n', 'm'        - number of elements in 's' and 't' respectively
-//  'al'            - a STL-style memory allocator
+//
+//  'nc'            - number of elements in container 'c'
+//  'n', 'm'        - number of elements in 's' and 't', respectively
+//  'al'            - STL-style memory allocator
 //  'v'             - an object of type 'V'
 //
 //  +----------------------------------------------------+--------------------+
@@ -149,7 +161,7 @@ BSLS_IDENT("$Id: $")
 // priority tasks are finished.  When he has finished all tasks, he is to
 // report to his wife that he is ready for more.
 //
-// First, we define the class implementing the 'to-do' list.
+// First, we define the class implementing the to-do list.
 //..
 //  class ToDoList {
 //      // DATA
@@ -202,9 +214,9 @@ BSLS_IDENT("$Id: $")
 //  }
 //..
 // Then, create an object of type 'ToDoList'.
-//
+//..
 //  ToDoList toDoList;
-//
+//..
 // Next, a few tasks are requested:
 //..
 //  toDoList.enqueueTask("Change the car's oil.");
@@ -260,16 +272,8 @@ BSL_OVERRIDES_STD mode"
 #include <bslscm_version.h>
 #endif
 
-#ifndef INCLUDED_BSLSTL_ALLOCATOR
-#include <bslstl_allocator.h>
-#endif
-
 #ifndef INCLUDED_BSLSTL_DEQUE
 #include <bslstl_deque.h>
-#endif
-
-#ifndef INCLUDED_BSLSTL_STDEXCEPTUTIL
-#include <bslstl_stdexceptutil.h>
 #endif
 
 #ifndef INCLUDED_BSLALG_SWAPUTIL
@@ -288,6 +292,14 @@ BSL_OVERRIDES_STD mode"
 #include <bslmf_movableref.h>
 #endif
 
+#ifndef INCLUDED_BSLMF_NESTEDTRAITDECLARATION
+#include <bslmf_nestedtraitdeclaration.h>
+#endif
+
+#ifndef INCLUDED_BSLMF_USESALLOCATOR
+#include <bslmf_usesallocator.h>
+#endif
+
 #ifndef INCLUDED_BSLS_COMPILERFEATURES
 #include <bsls_compilerfeatures.h>
 #endif
@@ -296,75 +308,43 @@ BSL_OVERRIDES_STD mode"
 #include <bsls_util.h>
 #endif
 
-#ifndef INCLUDED_ALGORITHM
-#include <algorithm>
-#define INCLUDED_ALGORITHM
-#endif
-
 namespace bsl {
 
-template <class CONTAINER>
-class Stack_HasAllocatorType {
-    // This 'class' computes a public constant 'VALUE', which is 'true' if the
-    // passed 'CONTAINER' defines a type 'CONTAINER::allocator_type' and
-    // 'false' otherwise.  This is used in conjunction with 'enable_if' to make
-    // methods of 'stack' that take allocator arguments exist if
-    // 'CONTAINER::allocator_type' is present, and remove them from the
-    // constructor overload set otherwise.
-
-    // TYPES
-    typedef char YesType;
-    struct NoType { char a[2]; };
-
-    // CLASS METHODS
-    template <class TYPE>
-    static YesType match(const typename TYPE::allocator_type *);
-    template <class TYPE>
-    static NoType match(...);
-        // The return type of 'match' is 'YesType' if 'TYPE' has an allocator
-        // type, and 'NoType' otherwise.
-
-  public:
-    enum { VALUE = (sizeof(YesType) == sizeof(match<CONTAINER>(0))) };
-};
+                             // ===========
+                             // class stack
+                             // ===========
 
 template <class VALUE, class CONTAINER = deque<VALUE> >
 class stack {
     // This 'class' defines a container adapter which supports access primarily
-    // via 'push', 'pop', and 'top'.  This type is value-semantic, and can be
-    // based on a variety of other container types, including 'deque',
-    // 'vector', and 'list'.
+    // via 'push', 'pop', and 'top'.  This type can be based on a variety of
+    // other container types, including 'deque', 'vector', and 'list'.  This
+    // type is value-semantic if the supporting 'CONTAINER' and 'VALUE' are
+    // value-semantic.
     //
     // Note that we never use 'VALUE' in the implementation except in the
     // default argument of 'CONTAINER'.  We use 'CONTAINER::value_type' for
     // everything, which means that if 'CONTAINER' is specified, then 'VALUE'
     // is ignored.
 
+  private:
+    // PRIVATE TYPES
+    typedef BloombergLP::bslmf::MovableRefUtil  MoveUtil;
+        // This 'typedef' is a convenient alias for the utility associated with
+        // movable references.
+
   public:
     // PUBLIC TYPES
-
     typedef typename CONTAINER::value_type      value_type;
     typedef typename CONTAINER::reference       reference;
     typedef typename CONTAINER::const_reference const_reference;
     typedef typename CONTAINER::size_type       size_type;
     typedef          CONTAINER                  container_type;
 
-  private:
-    // PRIVATE DATA
-    container_type  d_container;    // container in which objects are stored
-
   protected:
     // PROTECTED DATA
-    container_type& c;    // We are required by the standard to have the
-                          // container be a protected variable named 'c'.  Just
-                          // a reference to 'd_container'.
-
-  public:
-    // TRAITS
-    BSLMF_NESTED_TRAIT_DECLARATION_IF(
-        stack,
-        BloombergLP::bslma::UsesBslmaAllocator,
-        BloombergLP::bslma::UsesBslmaAllocator<container_type>::value);
+    container_type  c;    // We are required by the standard to have the
+                          // container be a protected variable named 'c'.
 
   private:
     // FRIENDS
@@ -382,81 +362,124 @@ class stack {
     friend bool operator>=(const stack<VAL, CONT>&, const stack<VAL, CONT>&);
 
   public:
+    // TRAITS
+    BSLMF_NESTED_TRAIT_DECLARATION_IF(
+        stack,
+        BloombergLP::bslma::UsesBslmaAllocator,
+        BloombergLP::bslma::UsesBslmaAllocator<container_type>::value);
+
     // CREATORS
     stack();
-        // Construct an empty stack.  No allocator will be provided to the
-        // underlying container, and the container's memory allocation will be
-        // provided by whatever is the default for the container type.
+        // Create an empty stack.  No allocator will be provided to the
+        // underlying container.  That container's memory allocation will be
+        // provided by the default allocator of its type.
 
     template <class ALLOCATOR>
     explicit
     stack(const ALLOCATOR& basicAllocator,
-          typename enable_if<Stack_HasAllocatorType<CONTAINER>::VALUE,
+          typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
                              ALLOCATOR>::type * = 0);
-        // Construct an empty stack, and use the specified 'basicAllocator' to
+        // Create an empty stack, and use the specified 'basicAllocator' to
         // supply memory.  If 'CONTAINER::allocator_type' does not exist, this
         // constructor may not be used.
 
     explicit
     stack(const CONTAINER& container);
-        // Construct a stack whose underlying container has the value of the
-        // specified 'container'.
+        // Create a stack whose underlying container has the value of the
+        // specified 'container'.  The currently installed default allocator is
+        // used to supply memory.
 
     template <class ALLOCATOR>
     stack(const CONTAINER& container,
           const ALLOCATOR& basicAllocator,
-          typename enable_if<Stack_HasAllocatorType<CONTAINER>::VALUE,
+          typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
                              ALLOCATOR>::type * = 0);
-        // Construct a stack whose underlying container has the value of the
+        // Create a stack whose underlying container has the value of the
         // specified 'container', and use the specified 'basicAllocator' to
         // supply memory.  If 'CONTAINER::allocator_type' does not exist, this
         // constructor may not be used.
 
     stack(const stack& original);
-        // Construct a stack having the same value as the specified 'original'.
+        // Create a stack having the value of the specified 'original'.  The
+        // currently installed default allocator is used to supply memory.
 
     template <class ALLOCATOR>
     stack(const stack&     original,
           const ALLOCATOR& basicAllocator,
-          typename enable_if<Stack_HasAllocatorType<CONTAINER>::VALUE,
+          typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
                              ALLOCATOR>::type * = 0);
-        // Construct a stack having the same value as the specified stack
-        // 'original', and use the specified 'basicAllocator' to supply memory.
-        // If 'CONTAINER::allocator_type' does not exist, this constructor may
-        // not be used.
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    explicit
-    stack(CONTAINER&&                               container);
-
-    template <class ALLOCATOR>
-    stack(CONTAINER&&      container,
-          const ALLOCATOR& basicAllocator,
-          typename enable_if<Stack_HasAllocatorType<CONTAINER>::VALUE,
-                             ALLOCATOR>::type * = 0);
-        // TBD
+        // Create a stack having the value of the specified stack 'original'
+        // and use the specified 'basicAllocator' to supply memory.  If
+        // 'CONTAINER::allocator_type' does not exist, this constructor may not
+        // be used.
 
     explicit
-    stack(stack&&          original);
-        // TBD
+    stack(BloombergLP::bslmf::MovableRef<CONTAINER> container);
+        // Create a stack whose underlying container has the value of the
+        // specified 'container' (on entry) by moving the contents of
+        // 'container' to the new stack.  The allocator associated with
+        // 'container' is propagated for use in the new stack.  'container' is
+        // left in a valid but unspecified state.
 
     template <class ALLOCATOR>
-    stack(stack&&          original,
-          const ALLOCATOR& basicAllocator,
-          typename enable_if<Stack_HasAllocatorType<CONTAINER>::VALUE,
+    stack(BloombergLP::bslmf::MovableRef<CONTAINER> container,
+          const ALLOCATOR&                          basicAllocator,
+          typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
                              ALLOCATOR>::type * = 0);
-        // TBD
-#endif
+        // Create a stack whose underlying container has the value of the
+        // specified 'container' (on entry) that uses 'basicAllocator' to
+        // supply memory by using the allocator-extended move constructor of
+        // 'CONTAINER.  'container' is left in a valid but unspecified state.
+        // A 'bslma::Allocator *' can be supplied for 'basicAllocator' if the
+        // (template parameter) 'ALLOCATOR' is 'bsl::allocator' (the default).
+        // This method assumes that 'CONTAINER' has a move constructor.  If
+        // 'CONTAINER::allocator_type' does not exist, this constructor may not
+        // be used.
+
+    explicit
+    stack(BloombergLP::bslmf::MovableRef<stack> original);
+        // Create a stack having the value of the specified 'original' by
+        // moving the contents of 'original' to the new stack.  The allocator
+        // associated with 'original' is propagated for use in the new stack.
+        // 'original' is left in a valid but unspecified state.
+
+    template <class ALLOCATOR>
+    stack(BloombergLP::bslmf::MovableRef<stack> original,
+          const ALLOCATOR&                      basicAllocator,
+          typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                             ALLOCATOR>::type * = 0);
+        // Create a stack having the value of the specified 'original' (on
+        // entry) that uses 'basicAllocator' to supply memory by using the
+        // allocator-extended moved constructor of 'CONTAINER'.  'original' is
+        // left in a valid but unspecified state.  Note that a
+        // 'bslma::Allocator *' can be supplied for 'basicAllocator' if the
+        // (template parameter) 'ALLOCATOR' is 'bsl::allocator' (the default).
+        // Also note that this method assumes that 'CONTAINER' has a move
+        // constructor.  Finally note that if 'CONTAINER::allocator_type' does
+        // not exist, this constructor may not be used.
 
     // MANIPULATORS
-    stack& operator=(const stack& rhs);
+    stack& operator=(const stack& rhs)
+             BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE);
         // Assign to this object the value of the specified 'rhs' object, and
         // return a reference providing modifiable access to this object.
+
+    stack& operator=(BloombergLP::bslmf::MovableRef<stack> rhs);
+        // Assign to this object the value of the specified 'rhs' object, and
+        // return a reference providing modifiable access to this object.  The
+        // contents of 'rhs' are moved to this stack using the move-assignment
+        // operator of 'CONTAINER'.  'rhs' is left in a valid but unspecified
+        // state, and if an exception is thrown, '*this' is left in a valid but
+        // unspecified state.
 
 #if !BSLS_COMPILERFEATURES_SIMULATE_CPP11_FEATURES
     template <class... Args>
     void emplace(Args&&... args);
-        // TBD
+        // Push onto this stack a newly created 'value_type' object constructed
+        // by forwarding 'get_allocator()' (if required) and the specified
+        // (variable number of) 'args' to the corresponding constructor of
+        // 'value_type'.
+
 #elif BSLS_COMPILERFEATURES_SIMULATE_VARIADIC_TEMPLATES
 // {{{ BEGIN GENERATED CODE
 // The following section is automatically generated.  **DO NOT EDIT**
@@ -593,23 +616,25 @@ class stack {
 
     void pop();
         // Remove the top element from this stack.  The behavior is undefined
-        // if the stack is empty.
+        // if this stack is empty.
 
     void push(const value_type& value);
-        // Push the specified 'value' onto the top of the stack.
+        // Push the specified 'value' onto the top of this stack.
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    void push(value_type&& value);
-        // TBD
-#endif
+    void push(BloombergLP::bslmf::MovableRef<value_type> value);
+        // Push onto this stack a 'value_type' object having the value of the
+        // specified 'value' (on entry) by moving the contents of 'value' to
+        // the new object on this stack.  'value' is left in a valid but
+        // unspecified state.
 
-    void swap(stack& other);
-        // Exchange the value of this object with the value of the specified
-        // 'other' object.
+    void swap(stack& other)
+             BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE);
+        // Exchange the value of this stack with the value of the specified
+        // 'other' stack.
 
     reference top();
         // Return a reference to the element at the top of this stack.  The
-        // behavior is undefined if the stack is empty.
+        // behavior is undefined if this stack is empty.
 
     // ACCESSORS
     bool empty() const;
@@ -625,26 +650,7 @@ class stack {
         // empty.
 };
 
-#if 0
-// 'uses_allocator' and 'is_constructible' depend on the underlying 'container'
-// having these constructs, which 'deque', 'vector', and 'list' don't yet.
-
-                            // ==============
-                            // uses_allocator
-                            // ==============
-
-template <class VALUE, class CONTAINER, class ALLOCATOR>
-struct uses_allocator<stack<VALUE, CONTAINER>, ALLOCATOR>
-: uses_allocator<CONTAINER, ALLOCATOR>::type {
-    // doc TBD
-};
-
-#endif
-
-//=============================================================================
-//                              FREE OPERATORS
-//=============================================================================
-
+// FREE OPERATORS
 template <class VALUE, class CONTAINER>
 bool operator==(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs);
@@ -656,8 +662,8 @@ template <class VALUE, class CONTAINER>
 bool operator!=(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs);
     // Return 'true' if the specified 'lhs' and 'rhs' objects do not have the
-    // same value, and 'false' otherwise.  Two 'stack' objects have the same
-    // value if their underlying containers have the same value.
+    // same value, and 'false' otherwise.  Two 'stack' objects do not have the
+    // same value if their underlying containers do not have the same value.
 
 template <class VALUE, class CONTAINER>
 bool operator< (const stack<VALUE, CONTAINER>& lhs,
@@ -689,128 +695,134 @@ bool operator>=(const stack<VALUE, CONTAINER>& lhs,
     // if its underlying container is greater than or equal to the other's
     // underlying container.
 
+// FREE FUNCTIONS
 template <class VALUE, class CONTAINER>
 void swap(stack<VALUE, CONTAINER>& lhs,
-          stack<VALUE, CONTAINER>& rhs);
-    // Swap the contents of 'lhs' and 'rhs'.  The behavior is undefined unless
-    // 'lhs' and 'rhs' use the same allocator.
+          stack<VALUE, CONTAINER>& rhs)
+             BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE);
+    // Swap the value of the specified 'lhs' stack with the value of the
+    // specified 'rhs' stack.
 
 //=============================================================================
-//                          INLINE FUNCTION DEFINITIONS
+//                  TEMPLATE AND INLINE FUNCTION DEFINITIONS
 //=============================================================================
+
+                             // -----------
+                             // class stack
+                             // -----------
 
 // CREATORS
 template <class VALUE, class CONTAINER>
 inline
 stack<VALUE, CONTAINER>::stack()
-: d_container()
-, c(d_container)
-{}
+: c()
+{
+}
 
 template <class VALUE, class CONTAINER>
 template <class ALLOCATOR>
 inline
 stack<VALUE, CONTAINER>::stack(const ALLOCATOR& basicAllocator,
-                               typename enable_if<
-                                      Stack_HasAllocatorType<CONTAINER>::VALUE,
-                                      ALLOCATOR>::type *)
-: d_container(basicAllocator)
-, c(d_container)
-{}
+           typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                              ALLOCATOR>::type *)
+: c(basicAllocator)
+{
+}
 
 template <class VALUE, class CONTAINER>
 inline
 stack<VALUE, CONTAINER>::stack(const CONTAINER& container)
-: d_container(container)
-, c(d_container)
-{}
+: c(container)
+{
+}
 
 template <class VALUE, class CONTAINER>
 template <class ALLOCATOR>
 inline
 stack<VALUE, CONTAINER>::stack(
-                           const CONTAINER& container,
-                           const ALLOCATOR& basicAllocator,
-                           typename enable_if<
-                                      Stack_HasAllocatorType<CONTAINER>::VALUE,
-                                      ALLOCATOR>::type *)
-: d_container(container, basicAllocator)
-, c(d_container)
-{}
+    const CONTAINER& container,
+    const ALLOCATOR& basicAllocator,
+    typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                       ALLOCATOR>::type *)
+: c(container, basicAllocator)
+{
+}
 
 template <class VALUE, class CONTAINER>
 inline
 stack<VALUE, CONTAINER>::stack(const stack& original)
-: d_container(original.d_container)
-, c(d_container)
-{}
+: c(original.c)
+{
+}
 
 template <class VALUE, class CONTAINER>
 template <class ALLOCATOR>
 inline
 stack<VALUE, CONTAINER>::stack(
-                           const stack&     original,
-                           const ALLOCATOR& basicAllocator,
-                           typename enable_if<
-                                      Stack_HasAllocatorType<CONTAINER>::VALUE,
-                                      ALLOCATOR>::type *)
-: d_container(original.d_container, basicAllocator)
-, c(d_container)
-{}
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+    const stack&     original,
+    const ALLOCATOR& basicAllocator,
+    typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                       ALLOCATOR>::type *)
+: c(original.c, basicAllocator)
+{
+}
 
 template <class VALUE, class CONTAINER>
 inline
-stack<VALUE, CONTAINER>::stack(CONTAINER&& container)
-: d_container(BloombergLP::bslmf::MovableRefUtil::move(container))
-, c(d_container)
-{}
+stack<VALUE, CONTAINER>::stack(BloombergLP::bslmf::MovableRef<CONTAINER>
+                                                                     container)
+: c(MoveUtil::move(container))
+{
+}
 
 template <class VALUE, class CONTAINER>
 template <class ALLOCATOR>
 inline
 stack<VALUE, CONTAINER>::stack(
-                           CONTAINER&&      container,
-                           const ALLOCATOR& basicAllocator,
-                           typename enable_if<
-                                      Stack_HasAllocatorType<CONTAINER>::VALUE,
-                                      ALLOCATOR>::type *)
-: d_container(BloombergLP::bslmf::MovableRefUtil::move(container),
-              basicAllocator)
-, c(d_container)
-{}
+    BloombergLP::bslmf::MovableRef<CONTAINER> container,
+    const ALLOCATOR&                          basicAllocator,
+    typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                       ALLOCATOR>::type *)
+: c(MoveUtil::move(container), basicAllocator)
+{
+}
 
 template <class VALUE, class CONTAINER>
 inline
-stack<VALUE, CONTAINER>::stack(stack&& original)
-: d_container(BloombergLP::bslmf::MovableRefUtil::move(original.d_container))
-, c(d_container)
-{}
+stack<VALUE, CONTAINER>::stack(BloombergLP::bslmf::MovableRef<stack> original)
+: c(MoveUtil::move(MoveUtil::access(original).c))
+{
+}
 
 template <class VALUE, class CONTAINER>
 template <class ALLOCATOR>
 inline
 stack<VALUE, CONTAINER>::stack(
-                           stack&&          original,
-                           const ALLOCATOR& basicAllocator,
-                           typename enable_if<
-                                      Stack_HasAllocatorType<CONTAINER>::VALUE,
-                                      ALLOCATOR>::type *)
-: d_container(BloombergLP::bslmf::MovableRefUtil::move(original.d_container),
-              basicAllocator)
-, c(d_container)
-{}
-
-#endif
+    BloombergLP::bslmf::MovableRef<stack> original,
+    const ALLOCATOR&                      basicAllocator,
+    typename enable_if<bsl::uses_allocator<CONTAINER, ALLOCATOR>::value,
+                       ALLOCATOR>::type *)
+: c(MoveUtil::move(MoveUtil::access(original).c), basicAllocator)
+{
+}
 
 // MANIPULATORS
 template <class VALUE, class CONTAINER>
 inline
 stack<VALUE, CONTAINER>& stack<VALUE, CONTAINER>::operator=(const stack& rhs)
 {
-    d_container = rhs.d_container;
+    c = rhs.c;
 
+    return *this;
+}
+
+template <class VALUE, class CONTAINER>
+inline
+stack<VALUE, CONTAINER>& stack<VALUE, CONTAINER>::operator=(
+                                     BloombergLP::bslmf::MovableRef<stack> rhs)
+              BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE)
+{
+    c = MoveUtil::move(MoveUtil::access(rhs).c);
     return *this;
 }
 
@@ -820,7 +832,7 @@ template <class... Args>
 inline
 void stack<VALUE, CONTAINER>::emplace(Args&&... args)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args,args)...);
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args,args)...);
 }
 #elif BSLS_COMPILERFEATURES_SIMULATE_VARIADIC_TEMPLATES
 // {{{ BEGIN GENERATED CODE
@@ -831,7 +843,7 @@ inline
 void stack<VALUE, CONTAINER>::emplace(
                                )
 {
-    d_container.emplace_back();
+    c.emplace_back();
 }
 
 template <class VALUE, class CONTAINER>
@@ -840,7 +852,7 @@ inline
 void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_01) args_01)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01));
 }
 
 template <class VALUE, class CONTAINER>
@@ -851,8 +863,8 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_01) args_01,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_02) args_02)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02));
 }
 
 template <class VALUE, class CONTAINER>
@@ -865,9 +877,9 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_02) args_02,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_03) args_03)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03));
 }
 
 template <class VALUE, class CONTAINER>
@@ -882,10 +894,10 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_03) args_03,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_04) args_04)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04));
 }
 
 template <class VALUE, class CONTAINER>
@@ -902,11 +914,11 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_04) args_04,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_05) args_05)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05));
 }
 
 template <class VALUE, class CONTAINER>
@@ -925,12 +937,12 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_05) args_05,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_06) args_06)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06));
 }
 
 template <class VALUE, class CONTAINER>
@@ -951,13 +963,13 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_06) args_06,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_07) args_07)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07));
 }
 
 template <class VALUE, class CONTAINER>
@@ -980,14 +992,14 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_07) args_07,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_08) args_08)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08));
 }
 
 template <class VALUE, class CONTAINER>
@@ -1012,15 +1024,15 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_08) args_08,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_09) args_09)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_09,args_09));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_09,args_09));
 }
 
 template <class VALUE, class CONTAINER>
@@ -1047,16 +1059,16 @@ void stack<VALUE, CONTAINER>::emplace(
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_09) args_09,
                             BSLS_COMPILERFEATURES_FORWARD_REF(Args_10) args_10)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_09,args_09),
-                             BSLS_COMPILERFEATURES_FORWARD(Args_10,args_10));
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args_01,args_01),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_02,args_02),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_03,args_03),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_04,args_04),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_05,args_05),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_06,args_06),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_07,args_07),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_08,args_08),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_09,args_09),
+                   BSLS_COMPILERFEATURES_FORWARD(Args_10,args_10));
 }
 
 #else
@@ -1068,7 +1080,7 @@ inline
 void stack<VALUE, CONTAINER>::emplace(
                                BSLS_COMPILERFEATURES_FORWARD_REF(Args)... args)
 {
-    d_container.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args,args)...);
+    c.emplace_back(BSLS_COMPILERFEATURES_FORWARD(Args,args)...);
 }
 // }}} END GENERATED CODE
 #endif
@@ -1079,30 +1091,30 @@ void stack<VALUE, CONTAINER>::pop()
 {
     BSLS_ASSERT_SAFE(!empty());
 
-    d_container.pop_back();
+    c.pop_back();
 }
 
 template <class VALUE, class CONTAINER>
 inline
 void stack<VALUE, CONTAINER>::push(const value_type& value)
 {
-    d_container.push_back(value);
+    c.push_back(value);
 }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
 template <class VALUE, class CONTAINER>
 inline
-void stack<VALUE, CONTAINER>::push(value_type&& value)
+void stack<VALUE, CONTAINER>::push(BloombergLP::bslmf::MovableRef<value_type>
+                                                                         value)
 {
-    d_container.push_back(BloombergLP::bslmf::MovableRefUtil::move(value));
+    c.push_back(MoveUtil::move(value));
 }
-#endif
 
 template <class VALUE, class CONTAINER>
 inline
 void stack<VALUE, CONTAINER>::swap(stack& other)
+              BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE)
 {
-    BloombergLP::bslalg::SwapUtil::swap(&d_container, &other.d_container);
+    BloombergLP::bslalg::SwapUtil::swap(&c, &other.c);
 }
 
 template <class VALUE, class CONTAINER>
@@ -1111,7 +1123,7 @@ typename CONTAINER::reference stack<VALUE, CONTAINER>::top()
 {
     BSLS_ASSERT_SAFE(!empty());
 
-    return d_container.back();
+    return c.back();
 }
 
 // ACCESSORS
@@ -1119,21 +1131,21 @@ template <class VALUE, class CONTAINER>
 inline
 bool stack<VALUE, CONTAINER>::empty() const
 {
-    return 0 == d_container.size();
+    return 0 == c.size();
 }
 
 template <class VALUE, class CONTAINER>
 inline
 typename CONTAINER::size_type stack<VALUE, CONTAINER>::size() const
 {
-    return d_container.size();
+    return c.size();
 }
 
 template <class VALUE, class CONTAINER>
 inline
 typename CONTAINER::const_reference stack<VALUE, CONTAINER>::top() const
 {
-    return d_container.back();
+    return c.back();
 }
 
 // FREE OPERATORS
@@ -1142,7 +1154,7 @@ inline
 bool operator==(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container == rhs.d_container;
+    return lhs.c == rhs.c;
 }
 
 template <class VALUE, class CONTAINER>
@@ -1150,7 +1162,7 @@ inline
 bool operator!=(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container != rhs.d_container;
+    return lhs.c != rhs.c;
 }
 
 template <class VALUE, class CONTAINER>
@@ -1158,7 +1170,7 @@ inline
 bool operator< (const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container < rhs.d_container;
+    return lhs.c < rhs.c;
 }
 
 template <class VALUE, class CONTAINER>
@@ -1166,7 +1178,7 @@ inline
 bool operator> (const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container > rhs.d_container;
+    return lhs.c > rhs.c;
 }
 
 template <class VALUE, class CONTAINER>
@@ -1174,7 +1186,7 @@ inline
 bool operator<=(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container <= rhs.d_container;
+    return lhs.c <= rhs.c;
 }
 
 template <class VALUE, class CONTAINER>
@@ -1182,13 +1194,15 @@ inline
 bool operator>=(const stack<VALUE, CONTAINER>& lhs,
                 const stack<VALUE, CONTAINER>& rhs)
 {
-    return lhs.d_container >= rhs.d_container;
+    return lhs.c >= rhs.c;
 }
 
+// FREE FUNCTIONS
 template <class VALUE, class CONTAINER>
 inline
 void swap(stack<VALUE, CONTAINER>& lhs,
           stack<VALUE, CONTAINER>& rhs)
+              BSLS_CPP11_NOEXCEPT_SPECIFICATION(BSLS_CPP11_PROVISIONALLY_FALSE)
 {
     lhs.swap(rhs);
 }
@@ -1198,7 +1212,7 @@ void swap(stack<VALUE, CONTAINER>& lhs,
 #endif
 
 // ----------------------------------------------------------------------------
-// Copyright 2013 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

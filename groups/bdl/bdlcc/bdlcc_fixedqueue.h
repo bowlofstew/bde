@@ -268,7 +268,7 @@ class FixedQueue {
                                            // 'd_popControlSema' to pop an
                                            // element
 
-    bslmt::Semaphore   d_popControlSema;    // semaphore on which threads
+    bslmt::Semaphore  d_popControlSema;    // semaphore on which threads
                                            // waiting to pop 'wait'
 
     const char        d_popControlSemaPad[k_SEMA_PADDING];
@@ -278,7 +278,7 @@ class FixedQueue {
                                            // 'd_pushControlSema' to push an
                                            // element
 
-    bslmt::Semaphore   d_pushControlSema;   // semaphore on which threads
+    bslmt::Semaphore  d_pushControlSema;   // semaphore on which threads
                                            // waiting to push 'wait'
 
     const char        d_pushControlSemaPad[k_SEMA_PADDING];
@@ -304,7 +304,8 @@ class FixedQueue {
         // Create a thread-enabled lock-free queue having the specified
         // 'capacity'.  Optionally specify a 'basicAllocator' used to supply
         // memory.  If 'basicAllocator' is 0, the currently installed default
-        // allocator is used.
+        // allocator is used.  The behavior is undefined unless '0 < capacity'
+        // and 'capacity <= bdlcc::FixedQueueIndexManager::k_MAX_CAPACITY'.
 
     ~FixedQueue();
         // Destroy this object.

@@ -495,28 +495,41 @@ int main(int argc, char *argv[])
             Obj mX(Id(0)); const Obj& MX = mX;
 
             int    count = 0;
-            double total = 0;
-            double min   = VALUES[i].d_min;
-            double max   = VALUES[i].d_max;
+
+            // These values are captured in volatile variables to ensure
+            // that optimized gcc builds don't perform comparisons with double
+            // values in registers (which may lead to invalid inequality
+            // because of the larger precision registers on x86 processors).
+
+
+            volatile double total = 0;
+            volatile double min   = VALUES[i].d_min;
+            volatile double max   = VALUES[i].d_max;
             for (int j = 0; j < NUM_VALUES; ++j) {
                 int idx = (i + j) % NUM_VALUES;
                 balm::MetricRecord r;
 
                 count += VALUES[idx].d_count;
                 total += VALUES[idx].d_total;
-                min   =  bsl::min(VALUES[idx].d_min, min);
-                max   =  bsl::max(VALUES[idx].d_max, max);
+                min   =  bsl::min(VALUES[idx].d_min, (double)min);
+                max   =  bsl::max(VALUES[idx].d_max, (double)max);
 
                 mX.accumulateCountTotalMinMax(VALUES[idx].d_count,
                                               VALUES[idx].d_total,
                                               VALUES[idx].d_min,
                                               VALUES[idx].d_max);
+                
                 MX.load(&r);
+
+                volatile double resultTotal = r.total();
+                volatile double resultMin   = r.min();
+                volatile double resultMax   = r.max();
+
                 ASSERT(0     == r.metricId());
                 ASSERT(count == r.count());
-                ASSERT(total == r.total());
-                ASSERT(min   == r.min());
-                ASSERT(max   == r.max());
+                ASSERTV(total, resultTotal, total == resultTotal);
+                ASSERTV(min, resultMin,     min   == resultMin);
+                ASSERTV(max, resultMax,     max   == resultMax);
             }
         }
       } break;
@@ -627,8 +640,17 @@ int main(int argc, char *argv[])
         if (verbose) cout << "\nTesting basic mainpulator and accessors."
                           << endl;
 
-        double UPDATES[] = { 0.0, 12.0, -1321123, 2131241, 1321.5,
-                            43145.1, .0001, -1.00001, -.002342};
+        double UPDATES[] = { 
+            0.0, 
+            12.0,
+            -1321123, 
+            2131241, 
+            1321.5,
+            43145.1, 
+            .0001, 
+            -1.00001, 
+            -.002342
+        };
         const int NUM_UPDATES = sizeof(UPDATES)/sizeof(*UPDATES);
 
         for (int i = 0; i < NUM_UPDATES; ++i) {
@@ -644,23 +666,33 @@ int main(int argc, char *argv[])
             ASSERT(Rec::k_DEFAULT_MIN == r1.min());
             ASSERT(Rec::k_DEFAULT_MAX == r1.max());
 
-            double total = 0;
-            double min   = UPDATES[i];
-            double max   = UPDATES[i];
+            // These values are captured in volatile variables to ensure
+            // that optimized gcc builds don't perform comparisons with double
+            // values in registers (which may lead to invalid inequality
+            // because of the larger precision registers on x86 processors).
+
+            volatile double total = 0;
+            volatile double min   = UPDATES[i];
+            volatile double max   = UPDATES[i];
             for (int j = 0; j < NUM_UPDATES; ++j) {
                 const int INDEX = (i + j) % NUM_UPDATES;
                 mX.update(UPDATES[INDEX]);
 
                 total += UPDATES[INDEX];
-                min   = bsl::min(min, UPDATES[INDEX]);
-                max   = bsl::max(max, UPDATES[INDEX]);
+                min   = bsl::min((double)min, UPDATES[INDEX]);
+                max   = bsl::max((double)max, UPDATES[INDEX]);
 
                 MX.load(&r1);
-                ASSERT(METRIC == r1.metricId().description());
-                ASSERT(j + 1  == r1.count());
-                ASSERT(total  == r1.total());
-                ASSERT(min    == r1.min());
-                LOOP2_ASSERT(max, r1.max(), max    == r1.max());
+
+                volatile double resultTotal = r1.total();
+                volatile double resultMin   = r1.min();
+                volatile double resultMax   = r1.max();
+
+                ASSERTV(METRIC == r1.metricId().description());
+                ASSERTV(i, j, r1.count(),        j + 1  == r1.count());
+                ASSERTV(i, j, total, resultTotal, total  == resultTotal);
+                ASSERTV(i, j, min, resultMin,     min    == resultMin);
+                ASSERTV(max, resultMax,           max    == resultMax);
 
                 MX.load(&r2);
                 ASSERT(r1 == r2);

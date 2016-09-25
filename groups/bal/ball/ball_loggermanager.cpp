@@ -19,7 +19,6 @@ BSLS_IDENT_RCSID(ball_loggermanager_cpp,"$Id$ $CSID$")
 #include <ball_loggermanagerdefaults.h>
 #include <ball_recordattributes.h>            // for testing only
 #include <ball_severity.h>
-#include <ball_userfieldsschema.h>
 #include <ball_testobserver.h>                // for testing only
 
 #include <bslmt_mutex.h>
@@ -158,19 +157,36 @@ bool isCategoryEnabled(ball::ThresholdAggregate *levels,
     return category.maxLevel() >= severity;
 }
 
+inline static 
+ball::Severity::Level convertBslsLogSeverity(bsls::LogSeverity::Enum severity)
+    // Return the 'ball' log severity equivalent to the specified 'bsls' log
+    // 'severity'.
+{
+    switch (severity) {
+        case bsls::LogSeverity::e_FATAL: return ball::Severity::e_FATAL;
+        case bsls::LogSeverity::e_ERROR: return ball::Severity::e_ERROR;
+        case bsls::LogSeverity::e_WARN:  return ball::Severity::e_WARN;
+        case bsls::LogSeverity::e_INFO:  return ball::Severity::e_INFO;
+        case bsls::LogSeverity::e_DEBUG: return ball::Severity::e_DEBUG;
+        case bsls::LogSeverity::e_TRACE: return ball::Severity::e_TRACE;
+    }
+    BSLS_ASSERT_OPT(false && "Unreachable by design");
+    return ball::Severity::e_ERROR;
+}
 
 static bslmt::QLock s_bslsLogLock = BSLMT_QLOCK_INITIALIZER;
     // A lock used to protect the configuration of the 'bsl_Log' callback
     // handler.  This lock prevents the logger manager from being destroyed
     // concurrently to an attempt to log a record.
 
-void bslsLogMessage(const char *fileName,
-                    int         lineNumber,
-                    const char *message)
-    // Write a 'ball' record having the specified 'fileName', 'lineNumber', and
-    // 'message'.  Note that this function signature matches
-    // 'bsls_Log::LogMessageHandler' and is intended to be installed a
-    // 'bsls_Log' message handler.
+void bslsLogMessage(bsls::LogSeverity::Enum  severity,
+                    const char              *fileName,
+                    int                      lineNumber,
+                    const char              *message)
+    // Write a 'ball' record having the specified 'severity', 'fileName',
+    // 'lineNumber', and 'message'.  Note that this function signature matches
+    // 'bsls::Log::LogMessageHandler' and is intended to be installed as a
+    // 'bsls::Log' message handler.
 {
     static ball::Category *category               = 0;
     static const char    *BSLS_LOG_CATEGORY_NAME = "BSLS.LOG";
@@ -194,10 +210,11 @@ void bslsLogMessage(const char *fileName,
         ball::RecordAttributes& attributes = record->fixedFields();
         attributes.setMessage(message);
 
-        logger.logMessage(*category, ball::Severity::e_ERROR, record);
+        logger.logMessage(*category, convertBslsLogSeverity(severity), record);
     }
     else {
-        (bsls::Log::platformDefaultMessageHandler)(fileName,
+        (bsls::Log::platformDefaultMessageHandler)(severity,
+                                                   fileName,
                                                    lineNumber,
                                                    message);
     }
@@ -235,7 +252,6 @@ void copyAttributesWithoutMessage(ball::Record                  *record,
 Logger::Logger(
            Observer                                   *observer,
            RecordBuffer                               *recordBuffer,
-           const ball::UserFieldsSchema               *schema,
            const Logger::UserFieldsPopulatorCallback&  populator,
            const PublishAllTriggerCallback&            publishAllCallback,
            int                                         scratchBufferSize,
@@ -245,7 +261,6 @@ Logger::Logger(
 : d_recordPool(-1, globalAllocator)
 , d_observer_p(observer)
 , d_recordBuffer_p(recordBuffer)
-, d_userFieldsSchema_p(schema)
 , d_populator(populator)
 , d_publishAll(publishAllCallback)
 , d_scratchBufferSize(scratchBufferSize)
@@ -255,7 +270,6 @@ Logger::Logger(
 {
     BSLS_ASSERT(d_observer_p);
     BSLS_ASSERT(d_recordBuffer_p);
-    BSLS_ASSERT(d_userFieldsSchema_p);
     BSLS_ASSERT(d_allocator_p);
 
     // 'snprintf' message buffer
@@ -266,7 +280,6 @@ Logger::~Logger()
 {
     BSLS_ASSERT(d_observer_p);
     BSLS_ASSERT(d_recordBuffer_p);
-    BSLS_ASSERT(d_userFieldsSchema_p);
     BSLS_ASSERT(d_publishAll);
     BSLS_ASSERT(d_scratchBuffer_p);
     BSLS_ASSERT(d_allocator_p);
@@ -322,7 +335,7 @@ void Logger::logMessage(const Category&            category,
     record->fixedFields().setThreadID(bslmt::ThreadUtil::selfIdAsUint64());
 
     if (d_populator) {
-        d_populator(&record->userFields(), *d_userFieldsSchema_p);
+        d_populator(&record->customFields());
     }
 
     bsl::shared_ptr<Record> handle(record, &d_recordPool, d_allocator_p);
@@ -423,7 +436,7 @@ void Logger::logMessage(const Category&            category,
 Record *Logger::getRecord(const char *file, int line)
 {
     Record *record = d_recordPool.getObject();
-    record->userFields().removeAll();
+    record->customFields().removeAll();
     record->fixedFields().clearMessage();
     record->fixedFields().setFileName(file);
     record->fixedFields().setLineNumber(line);
@@ -526,15 +539,11 @@ void LoggerManager::initSingletonImpl(
 
         s_singleton_p = singleton;
 
-
         // Configure 'bsls_log' to publish records using 'ball' via the
         // 'LoggerManager' singleton.
 
-        // TBD: The bsls_log integration is being disabled for BDE 2.23 (see
-        // 64382709).
-        //
-        // bslmt::QLockGuard qLockGuard(&s_bslsLogLock);
-        // bsls::Log::setLogMessageHandler(&bslsLogMessage);
+        bslmt::QLockGuard qLockGuard(&s_bslsLogLock);
+        bsls::Log::setLogMessageHandler(&bslsLogMessage);
 
     }
     else {
@@ -589,11 +598,9 @@ void LoggerManager::shutDownSingleton()
             // lock is necessary to ensure that the singleton is not destroyed
             // while a 'bsls_log' record is being published.
 
-            // TBD: The bsls_log integration is being disabled for BDE 2.23
-            // (see 64382709).
-            // bslmt::QLockGuard qLockGuard(&s_bslsLogLock);
-            // bsls::Log::setLogMessageHandler(
-            //                      &bsls::Log::platformDefaultMessageHandler);
+            bslmt::QLockGuard qLockGuard(&s_bslsLogLock);
+            bsls::Log::setLogMessageHandler(
+                                    &bsls::Log::platformDefaultMessageHandler);
         }
 
         // Clear the singleton pointer as early as possible to minimize the
@@ -711,7 +718,6 @@ void LoggerManager::constructObject(
 
     d_logger_p = new(*d_allocator_p) Logger(d_observer_p,
                                             d_recordBuffer_p,
-                                            &d_userFieldsSchema,
                                             d_populator,
                                             d_publishAllCallback,
                                             d_scratchBufferSize,
@@ -743,8 +749,6 @@ LoggerManager::LoggerManager(
                            configuration.defaults().defaultPassLevel(),
                            configuration.defaults().defaultTriggerLevel(),
                            configuration.defaults().defaultTriggerAllLevel())
-, d_userFieldsSchema(configuration.userFieldsSchema(),
-               bslma::Default::globalAllocator(globalAllocator))
 , d_populator(configuration.userFieldsPopulatorCallback())
 , d_logger_p(0)
 , d_categoryManager(bslma::Default::globalAllocator(globalAllocator))
@@ -806,7 +810,6 @@ Logger *LoggerManager::allocateLogger(RecordBuffer *buffer)
 
     Logger *logger = new(*d_allocator_p) Logger(d_observer_p,
                                                 buffer,
-                                                &d_userFieldsSchema,
                                                 d_populator,
                                                 d_publishAllCallback,
                                                 d_scratchBufferSize,
@@ -825,7 +828,6 @@ Logger *LoggerManager::allocateLogger(RecordBuffer *buffer,
 
     Logger *logger = new(*d_allocator_p) Logger(d_observer_p,
                                                 buffer,
-                                                &d_userFieldsSchema,
                                                 d_populator,
                                                 d_publishAllCallback,
                                                 scratchBufferSize,
@@ -844,7 +846,6 @@ Logger *LoggerManager::allocateLogger(RecordBuffer *buffer,
 
     Logger *logger = new(*d_allocator_p) Logger(observer,
                                                 buffer,
-                                                &d_userFieldsSchema,
                                                 d_populator,
                                                 d_publishAllCallback,
                                                 d_scratchBufferSize,
@@ -864,7 +865,6 @@ Logger *LoggerManager::allocateLogger(RecordBuffer *buffer,
 
     Logger *logger = new(*d_allocator_p) Logger(observer,
                                                 buffer,
-                                                &d_userFieldsSchema,
                                                 d_populator,
                                                 d_publishAllCallback,
                                                 scratchBufferSize,

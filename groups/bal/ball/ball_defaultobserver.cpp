@@ -53,7 +53,17 @@ void DefaultObserver::publish(const Record&  record, const Context&)
 
     *d_stream << '\n';
 
-    *d_stream << fixedFields.timestamp()               << ' '
+    const int SIZE = 64;
+    char      buffer[SIZE];
+    const int fractionalSecondPrecision = 3;
+
+    const int numBytesWritten = fixedFields.timestamp().printToBuffer(
+                                                    buffer,
+                                                    SIZE,
+                                                    fractionalSecondPrecision);
+    d_stream->write(buffer, numBytesWritten);
+
+    *d_stream << ' '
               << fixedFields.processID()               << ' '
               << fixedFields.threadID()                << ' '
               << Severity::toAscii(severityLevel) << ' '
@@ -66,10 +76,10 @@ void DefaultObserver::publish(const Record&  record, const Context&)
 
     *d_stream << ' ';
 
-    const ball::UserFields& userFields = record.userFields();
-    const int numUserFields = userFields.length();
-    for (int i = 0; i < numUserFields; ++i) {
-        *d_stream << userFields[i] << ' ';
+    const ball::UserFields& customFields = record.customFields();
+    const int numCustomFields = customFields.length();
+    for (int i = 0; i < numCustomFields; ++i) {
+        *d_stream << customFields[i] << ' ';
     }
 
     *d_stream << '\n' << bsl::flush;

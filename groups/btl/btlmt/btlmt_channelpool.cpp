@@ -13,6 +13,8 @@
 #include <bsls_ident.h>
 BSLS_IDENT("$Id$ $CSID$")
 
+#include <btlmt_channelstatus.h>
+
 #include <btls_iovecutil.h>
 #include <btlso_resolveutil.h>
 #include <btlso_socketimputil.h>
@@ -126,6 +128,93 @@ enum {
 // the last scheduled callback has run.  As before, we make the callbacks take
 // the shared pointer *by* *value*.
 
+// Handling of "high-watermark" and "low-watermark" alerts
+// -------------------------------------------------------
+//
+// The "Invocation of High- and Low-Water Mark Callbacks" section in the
+// component-level doc outlines under what conditions these alerts are provided
+// to the user.  This section will explain how the invocation of these alerts
+// is managed in the implementation.  Our goal in the invocation of these two
+// alerts is:
+//..
+// o The high- and low-watermark alerts should always be invoked in sequence.
+//   A "high-watermark alert" is always the first alert invoked and every
+//   "high-watermark alert" is always followed only by a "low-watermark alert".
+//   Similarly, a "low-watermark alert" can only be followed by a
+//   "high-watermark alert".
+//
+// o At any one time only one high- and/or low-watermark alert is pending.
+//..
+// Below, we will explain how the above invariants are implemented.
+//
+// The alert state for a specified 'btlmt::Channel' is managed by an atomic
+// variable, 'd_highWatermarkStateAlert', that can be in one of four states,
+// as specified in 'btlmt::Channel::HighWatermarkAlertState' 'enum'.  The
+// states that this member can be in are (detailed descriptions are in the
+// 'enum' definition and the abbreviations for each state that will be used
+// later are specified in parenthesis):
+//..
+// o e_HIGH_WATERMARK_ALERT_NOT_ACTIVE (NA)
+// o e_HIGH_WATERMARK_ALERT_PENDING    (HWP)
+// o e_LOW_WATERMARK_ALERT_PENDING     (LWP)
+// o e_HIGH_WATERMARK_ALERT_DELIVERED  (D)
+//..
+// The methods that use the 'd_highWatermarkStateAlert' are (abbreviated names
+// for each method that will be used later are specified in parenthesis):
+//..
+// o setWriteQueueHighWatermark   (SHW)
+// o setWriteQueueLowWatermark    (SLW)
+// o writeMessage                 (WM)
+// o writeCb                      (WCB)
+// o invokeWriteQueueHighWatemark (IHW)
+// o invokeWriteQueueLowWatemark  (ILW)
+//..
+// The state transition diagram for 'd_highWatermarkAlertState' along with the
+// methods that cause that state transition is as follows:
+//..
+//                     ILW             +-----+            WCB
+//    +------------------------------> | NA  | <----------------------------+
+//    |                                +-----+                              |
+//    |                                   |                                 |
+//    |                                   |                                 |
+//    |                               SHW |                                 |
+//    |                                WM |                                 |
+//    |                                   |                                 |
+//    |                                   |                                 |
+//    |                                   V                                 V
+// +-----+              SLW            +-----+            IHW             +---+
+// | LWP | <-------------------------- | HWP | -------------------------> | D |
+// +-----+              WCB            +-----+                            +---+
+//..
+// In the following table we explain the state transition that can occur in
+// each method.  The "Begin State" column outlines the beginning state of
+// 'd_highWatermarkAlertState' when each 'btlmt::Channel' method is invoked and
+// the "End State" specifies either the end state of
+// 'd_highWatermarkAlertState', if the flag is ignored or if the specified
+// begin state is erroneous.
+//..
+//                                      End State
+//                                      ---------
+//
+// Begin State   SHW         SLW         WM         WCB         IHW       ILW
+// -----------   ---         ---         --         ---         ---       ---
+//
+// NA            HWP       Ignored       HWP      Ignored      Error     Error
+// HWP         Ignored       LWP       Ignored      LWP          D       Error
+// LWP         Ignored*    Ignored     Ignored*   Ignored     Ignored      NA
+// D           Ignored       LWP       Ignored      NA         Error     Error
+//
+// * A 'setWriteQueueHighWatermark' or 'writeMessage' call may require a
+//   high watermark alert to be invoked when the state of
+//   'd_highWatermarkAlertState' is 'e_LOW_WATERMARK_ALERT_PENDING'.  This can
+//   happen for example if soon after the write queue is drain below the
+//   low-watermark level, a write fills it up again.  However, we dont know if
+//   the initial high-watermark alert was delivered or not.  So we simply
+//   ignore the alert in this case.  The delivery of the low-watermark alert
+//   should cause the user to try writing again and the high-watermark alert
+//   should be enqueued then.
+//..
+
 // ============================================================================
 //                     LOCAL CLASS DEFINITIONS
 // ============================================================================
@@ -161,6 +250,24 @@ enum ChannelDownMask {
     e_CLOSED_RECEIVE_MASK = 0x2,
     e_CLOSED_BOTH_MASK    = e_CLOSED_SEND_MASK | e_CLOSED_RECEIVE_MASK
 };
+
+int getPlatformErrorCode()
+    // Return the platform-specific error for an operation that was executed
+    // immediately before this function was called.  The error code returned by
+    // this method is valid only if the previous operation failed.  Calling
+    // this method after the successful completion of an operation may result
+    // in this method returning the stale error from a previously failed
+    // method.
+{
+#if defined(BTLSO_PLATFORM_WIN_SOCKETS)
+    int rc = WSAGetLastError();
+    if (!rc) rc = GetLastError();
+    if (!rc) rc = errno;
+    return rc;
+#else
+    return errno;
+#endif
+}
 
                     // ===================
                     // local class Channel
@@ -208,6 +315,42 @@ class Channel {
         // the channel lives at least as long as the callbacks that reference
         // it.
 
+    enum HighWatermarkAlertState {
+        // A channel in a channel-pool is designed to alert users when they
+        // have surpassed a configured threshold ("high-watermark level") for
+        // the size of the write queue of the channel.  The system for
+        // delivering this alert (the "high-watermark alert") can be in one of
+        // three states described below and is stored in the
+        // 'd_highWatermarkAlertState' variable.
+
+        e_HIGH_WATERMARK_ALERT_NOT_ACTIVE = 0,
+            // This state indicates that a condition warranting a
+            // high-watermark alert has not yet occurred (meaning either the
+            // high watermark threshold has not been exceeded, or it has, but a
+            // subsequent high and low watermark callbacks have been delivered
+            // to the user).
+
+        e_HIGH_WATERMARK_ALERT_PENDING,
+            // This state indicates that the conditions requiring high
+            // watermark alert have occurred (meaning that a write was
+            // attempted when the size of the write queue exceeded the high
+            // watermark or the enqueue watermark level) but the corresponding
+            // high watermark callback has not been delivered to the user.
+
+        e_LOW_WATERMARK_ALERT_PENDING,
+            // This state indicates that the conditions requiring low watermark
+            // alert have occurred (meaning that a high watermark alert was
+            // previously enqueued) but the corresponding high watermark or low
+            // watermark callback has not been delivered to the user.
+
+        e_HIGH_WATERMARK_ALERT_DELIVERED
+            // This state indicates that the conditions requiring high
+            // watermark alert have occurred (meaning that a write was
+            // attempted when the size of the write queue exceeded the high
+            // watermark or the enqueue watermark level) and that the
+            // corresponding high watermark callback was delivered to the user.
+    };
+
     // PRIVATE DATA MEMBERS
 
     // Socket section
@@ -250,8 +393,15 @@ class Channel {
                                                          // local buffer,
                                                          // stack-allocated
 
-    volatile bool                    d_hiWatermarkHitFlag;
-                                                         // already full
+    bsls::AtomicInt                  d_highWatermarkAlertState;
+                                                             // this data
+                                                             // member
+                                                             // specifies
+                                                             // which high
+                                                             // watermark
+                                                             // event state
+                                                             // this channel
+                                                             // is in
 
     // Channel state section (here for packing boolean flags together)
 
@@ -270,9 +420,9 @@ class Channel {
     bsls::TimeInterval               d_readTimeout;      // read timeout
                                                          // interval
 
-    int                              d_writeCacheLowWat;
+    int                              d_writeQueueLowWater;
 
-    int                              d_writeCacheHiWat;
+    int                              d_writeQueueHighWater;
 
     const int                        d_minIncomingMessageSize;
 
@@ -293,7 +443,7 @@ class Channel {
     bsls::TimeInterval               d_creationTime;     // time this object
                                                          // was created
 
-    volatile bsls::Types::Int64      d_numBytesRead;     // bytes read from
+    bsls::AtomicInt64                d_numBytesRead;     // bytes read from
                                                          // channel, should
                                                          // only be updated by
                                                          // callbacks
@@ -301,7 +451,7 @@ class Channel {
                                                          // event manager
                                                          // thread
 
-    volatile bsls::Types::Int64      d_numBytesWritten;  // bytes written to
+    bsls::AtomicInt64                d_numBytesWritten;  // bytes written to
                                                          // channel,
                                                          // modification
                                                          // synchronized with
@@ -310,7 +460,7 @@ class Channel {
                                                          // 'd_writeMutex' and
                                                          // 'd_isWriteActive')
 
-    volatile bsls::Types::Int64      d_numBytesRequestedToBeWritten;
+    bsls::AtomicInt64                d_numBytesRequestedToBeWritten;
                                                          // bytes requested to
                                                          // be written to
                                                          // channel;
@@ -318,10 +468,10 @@ class Channel {
                                                          // synchronized with
                                                          // 'd_writeMutex'
 
-    bsls::AtomicInt                  d_recordedMaxWriteCacheSize;
+    bsls::AtomicInt                  d_recordedMaxWriteQueueSize;
                                                          // maximum recorded
                                                          // size of the write
-                                                         // cache
+                                                         // queue
 
     // DO NOT CHANGE THE ORDER OF THESE TWO DATA MEMBERS
 
@@ -358,7 +508,7 @@ class Channel {
     bool                             d_isWriteActive;    // a thread is
                                                          // actively writing
 
-    bsls::AtomicInt                  d_writeActiveCacheSize;
+    bsls::AtomicInt                  d_writeActiveQueueSize;
                                                          // number of bytes
                                                          // currently being
                                                          // written (including
@@ -417,6 +567,18 @@ class Channel {
         // the calling thread.  Note that this function should always be
         // executed in the dispatcher thread of the event manager associated
         // with this channel.
+
+    void invokeWriteQueueHighWatermark(ChannelHandle self);
+        // Invoke the user-installed channel state callback with
+        // 'e_WRITE_QUEUE_HIGHWATER_MARK' state in the calling thread.
+        // Note that this function should always be executed in the dispatcher
+        // thread of the event manager associated with this channel.
+
+    void invokeWriteQueueLowWatermark(ChannelHandle self);
+        // Invoke the user-installed channel state callback with
+        // 'e_WRITE_QUEUE_LOWWATER_MARK' state in the calling thread.  Note
+        // that this function should always be executed in the dispatcher
+        // thread of the event manager associated with this channel.
 
     void notifyChannelDown(ChannelHandle             self,
                            btlso::Flag::ShutdownType type,
@@ -554,50 +716,53 @@ class Channel {
         // from being destroyed (by another thread) during the course of this
         // operation by holding the specified 'self' handle to this channel
         // pool.  Return 0 on success, or a negative value if the message could
-        // not be enqueued.  The templatized type 'MessageType' must be support
-        // by the 'ChannelPool_MessageUtil' class (i.e.  'btlb::Blob' or
-        // 'ChannelPool_MessageUtil::IovecArray').  Note that the message may
-        // not be enqueued if the number of bytes already enqueued for this
-        // channel exceeds either the specified 'enqueueWaterMark' or the high
-        // water mark specified to this channel at construction, or if
-        // enqueuing this message would cause the high water mark to be
-        // exceeded.  Note that success does not imply that the message is
-        // actually written to the channel, only that it has been enqueued
-        // successfully.  Also note that 'self' is guaranteed to be valid
-        // during the entirety of this call.
+        // not be enqueued.  The templatized type 'MessageType' must be
+        // supported by the 'ChannelPool_MessageUtil' class (i.e.  'btlb::Blob'
+        // or 'ChannelPool_MessageUtil::IovecArray').  Note that the message
+        // will not be enqueued if the number of bytes already enqueued for
+        // this channel exceeds either the specified 'enqueueWaterMark' or the
+        // high water mark specified to this channel at construction.  If the
+        // message is rejected for this reason, e_WRITE_QUEUE_HIGHWATER and
+        // e_WRITE_QUEUE_LOWWATER alerts are scheduled, and may be delivered to
+        // a different thread before this call returns.  Note that success does
+        // not imply that the message is actually written to the channel, only
+        // that it has been enqueued successfully.  Also note that 'self' is
+        // guaranteed to be valid during the entirety of this call.
 
-    int setWriteCacheHiWatermark(int numBytes);
-        // Set the write cache high-water mark for this channel to the
+    int setWriteQueueHighWatermark(int numBytes, ChannelHandle self);
+        // Set the write queue high-water mark for this channel to the
         // specified 'numBytes'; return 0 on success, and a non-zero value if
-        // 'numBytes' is less than the low-water mark for the write cache.  The
+        // 'numBytes' is less than the low-water mark for the write queue.  The
         // behavior is undefined unless '0 <= numBytes'.
 
-    void setWriteCacheHiWatermarkRaw(int numBytes);
-        // Set the write cache high-water mark for this channel to the
+    void setWriteQueueHighWatermarkRaw(int numBytes, ChannelHandle self);
+        // Set the write queue high-water mark for this channel to the
         // specified 'numBytes'.  The behavior is undefined unless exclusive
         // write access has been obtained on this channel prior to the call.
 
-    int setWriteCacheLowWatermark(int numBytes);
-        // Set the write cache low-water mark for this channel to the specified
+    int setWriteQueueLowWatermark(int numBytes, ChannelHandle self);
+        // Set the write queue low-water mark for this channel to the specified
         // 'numBytes'; return 0 on success, and a non-zero value if 'numBytes'
-        // is greater than the high-water mark for the write cache.  The
+        // is greater than the high-water mark for the write queue.  The
         // behavior is undefined unless '0 <= numBytes'.
 
-    void setWriteCacheLowWatermarkRaw(int numBytes);
-        // Set the write cache low-water mark for this channel to the specified
+    void setWriteQueueLowWatermarkRaw(int numBytes, ChannelHandle self);
+        // Set the write queue low-water mark for this channel to the specified
         // 'numBytes'.  The behavior is undefined unless exclusive write access
         // has been obtained on this channel prior to the call.
 
-    void setWriteCacheWatermarks(int lowWatermark, int hiWatermark);
-        // Set the write cache low-water and high-water marks for this channel
-        // to the specified 'lowWatermark' and 'hiWatermark', respectively.
+    void setWriteQueueWatermarks(int           lowWatermark,
+                                 int           highWatermark,
+                                 ChannelHandle self);
+        // Set the write queue low-water and high-water marks for this channel
+        // to the specified 'lowWatermark' and 'highWatermark', respectively.
         // The behavior is undefined unless '0 <= lowWatermark' and
-        // 'lowWatermark <= hiWatermark'.
+        // 'lowWatermark <= highWatermark'.
 
-    void resetRecordedMaxWriteCacheSize();
-        // Reset the recorded max write cache size for this channel to the
-        // current write cache size.  Note that this function resets the
-        // recorded max write cache size and does not change the write cache
+    void resetRecordedMaxWriteQueueSize();
+        // Reset the recorded max write queue size for this channel to the
+        // current write queue size.  Note that this function resets the
+        // recorded max write queue size and does not change the write queue
         // high-water mark for this channel.
 
     // ACCESSORS
@@ -636,13 +801,13 @@ class Channel {
         // Return the number of bytes request to be written to this channel
         // since its construction or since the last reset.
 
-    int currentWriteCacheSize() const;
-        // Return a snapshot of the number of bytes currently cached to be
+    int currentWriteQueueSize() const;
+        // Return a snapshot of the number of bytes currently queued to be
         // written to this channel.
 
-    int recordedMaxWriteCacheSize() const;
+    int recordedMaxWriteQueueSize() const;
         // Return a snapshot of the maximum recorded size, in bytes, of the
-        // cache of data to be written to this channel.
+        // queue of data to be written to this channel.
 
     StreamSocket *socket() const;
         // Return a pointer to this channel's underlying socket.
@@ -719,32 +884,32 @@ const btlso::IPv4Address& Channel::peerAddress() const
 inline
 bsls::Types::Int64 Channel::numBytesRead() const
 {
-    return d_numBytesRead;
+    return d_numBytesRead.loadRelaxed();
 }
 
 inline
 bsls::Types::Int64 Channel::numBytesWritten() const
 {
-    return d_numBytesWritten;
+    return d_numBytesWritten.loadRelaxed();
 }
 
 inline
 bsls::Types::Int64 Channel::numBytesRequestedToBeWritten() const
 {
-    return d_numBytesRequestedToBeWritten;
+    return d_numBytesRequestedToBeWritten.loadRelaxed();
 }
 
 inline
-int Channel::currentWriteCacheSize() const
+int Channel::currentWriteQueueSize() const
 {
     return d_writeEnqueuedData->length() +
-                                          d_writeActiveCacheSize.loadRelaxed();
+                                          d_writeActiveQueueSize.loadRelaxed();
 }
 
 inline
-int Channel::recordedMaxWriteCacheSize() const
+int Channel::recordedMaxWriteQueueSize() const
 {
-    return d_recordedMaxWriteCacheSize.loadRelaxed();
+    return d_recordedMaxWriteQueueSize.loadRelaxed();
 }
 
 inline
@@ -768,102 +933,6 @@ void *Channel::userData() const
                     // =====================
                     // local class Connector
                     // =====================
-
-class Connector {
-  public:
-    // This small object is stored in channel pool 'd_connectors' and holds all
-    // (but does not own any of) the information needed while an asynchronous
-    // call to 'ChannelPool::connect' is in progress.
-
-    // TRAITS
-    BSLALG_DECLARE_NESTED_TRAITS(Connector,
-                                 bslalg::TypeTraitUsesBslmaAllocator);
-
-    // DATA MEMBERS
-    bsl::shared_ptr<StreamSocket>  d_socket;           // connecting socket
-
-    TcpTimerEventManager          *d_manager_p;        // event manager in
-                                                       // which the timeout is
-                                                       // registered (not
-                                                       // necessarily the one
-                                                       // used for creating the
-                                                       // connection channel)
-
-    bsl::string                    d_serverName;       // server name to
-                                                       // resolve, unused
-                                                       // unless the resolution
-                                                       // flag is set
-
-    btlso::IPv4Address             d_serverAddress;    // server to connect to
-
-    bsls::TimeInterval             d_creationTime;     // time at which
-                                                       // connection was
-                                                       // initiated
-
-    bsls::TimeInterval             d_period;           // timeout period
-                                                       // between connection
-                                                       //  attempts
-
-    bsls::TimeInterval             d_start;            // last absolute
-                                                       // timeout
-
-    void                          *d_timeoutTimerId;   // timer registered by
-                                                       // event manager
-
-    int                            d_numAttempts;      // remaining number of
-                                                       // attempts
-
-    bool                           d_inProgress;       // last call to connect
-                                                       // returned WOULD_BLOCK,
-                                                       // socket event is still
-                                                       // registered
-
-    bool                           d_resolutionFlag;   // whether to perform
-                                                       // name resolution,
-                                                       // inside
-                                                       // connectInitiateCb
-
-    bool                           d_readEnabledFlag;  // flag set to initiate
-                                                       // read command upon
-                                                       // e_CHANNEL_UP
-
-    bool                           d_keepHalfOpenMode; // mode with which
-                                                       // connections must
-                                                       // create channels
-
-    bdlb::NullableValue<btlso::SocketOptions>
-                                   d_socketOptions;    // socket options
-                                                       // provided for connect
-
-    bdlb::NullableValue<btlso::IPv4Address>
-                                   d_localAddress;     // client address to
-                                                       // bind while connecting
-
-    // CREATORS
-    Connector(const bsl::shared_ptr<btlso::StreamSocket<btlso::IPv4Address> >&
-                                          socket,
-              TcpTimerEventManager       *manager,
-              int                         numAttempts,
-              const bsls::TimeInterval&   interval,
-              bool                        readEnabledFlag,
-              bool                        keepHalfOpenMode,
-              const btlso::SocketOptions *socketOptions = 0,
-              const btlso::IPv4Address   *localAddress = 0,
-              bslma::Allocator           *basicAllocator = 0);
-        // Create an connector initialized with the specified 'manager',
-        // 'numAttempts', and 'interval' period parameters and the specified
-        // 'readEnabledFlag' and 'keepHalfOpenMode' flags.  If the specified
-        // 'socketOptions' and 'localAddress' are not 0, use those parameters.
-        // Optionally specify a 'basicAllocator' used to supply memory.  If
-        // 'basicAllocator' is 0, use the currently installed default
-        // allocator.
-
-    Connector(const Connector& original, bslma::Allocator *basicAllocator = 0);
-        // Create a copy of the specified 'original' connector.  Optionally
-        // specify a 'basicAllocator' used to supply memory.  If
-        // 'basicAllocator' is 0, use the currently installed default
-        // allocator.
-};
 
 // CREATORS
 inline
@@ -1139,7 +1208,7 @@ namespace btlmt {
 void Channel::invokeChannelDown(ChannelHandle              self,
                                 ChannelPool::ChannelEvents type)
 {
-    BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
+    (void)self; BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
                                   bslmt::ThreadUtil::self(),
                                   d_eventManager_p->dispatcherThreadHandle()));
     BSLS_ASSERT(this == self.get());
@@ -1184,6 +1253,58 @@ void Channel::invokeChannelUp(ChannelHandle)
                      d_userData);
 
     d_channelUpFlag = 1;
+}
+
+void Channel::invokeWriteQueueHighWatermark(ChannelHandle)
+{
+    BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
+                                  bslmt::ThreadUtil::self(),
+                                  d_eventManager_p->dispatcherThreadHandle()));
+
+    d_channelStateCb(d_channelId,
+                     d_sourceId,
+                     ChannelPool::e_WRITE_QUEUE_HIGHWATER,
+                     d_userData);
+
+    // See the 'Handling of "high-watermark" and "low-watermark" alerts'
+    // section in the implementation notes for details on the various states
+    // that 'd_highWatermarkAlertState' can be in.
+
+    int prevHighWatermarkState = d_highWatermarkAlertState.testAndSwap(
+                                             e_HIGH_WATERMARK_ALERT_PENDING,
+                                             e_HIGH_WATERMARK_ALERT_DELIVERED);
+
+    (void)prevHighWatermarkState;
+    BSLS_ASSERT(e_HIGH_WATERMARK_ALERT_PENDING == prevHighWatermarkState
+             || e_LOW_WATERMARK_ALERT_PENDING  == prevHighWatermarkState);
+}
+
+void Channel::invokeWriteQueueLowWatermark(ChannelHandle)
+{
+    BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
+                                  bslmt::ThreadUtil::self(),
+                                  d_eventManager_p->dispatcherThreadHandle()));
+
+    // The invocation of the channel state callback with
+    // 'e_WRITE_QUEUE_LOWWATER' informs the user that the write queue is
+    // now below the high watermark level and that they can begin writing
+    // again.  We reset the 'd_highWatermarkAlertState' before invoking the low
+    // watermark callback to allow 'write's in the callback to succeed.
+
+    // See the 'Handling of "high-watermark" and "low-watermark" alerts'
+    // section in the implementation notes for details on the various states
+    // that 'd_highWatermarkAlertState' can be in.
+
+    int prevHighWatermarkState = d_highWatermarkAlertState.swap(
+                                            e_HIGH_WATERMARK_ALERT_NOT_ACTIVE);
+
+    (void)prevHighWatermarkState;
+    BSLS_ASSERT(e_LOW_WATERMARK_ALERT_PENDING == prevHighWatermarkState);
+
+    d_channelStateCb(d_channelId,
+                     d_sourceId,
+                     ChannelPool::e_WRITE_QUEUE_LOWWATER,
+                     d_userData);
 }
 
 void Channel::notifyChannelDown(ChannelHandle             self,
@@ -1244,7 +1365,7 @@ void Channel::notifyChannelDown(ChannelHandle             self,
         }
         else {
             bsl::function<void()> cb(bdlf::BindUtil::bind(
-                                           &Channel::invokeChannelDown,
+                                            &Channel::invokeChannelDown,
                                             this,
                                             self,
                                             ChannelPool::e_CHANNEL_DOWN_READ));
@@ -1260,7 +1381,7 @@ void Channel::notifyChannelDown(ChannelHandle             self,
         }
         else {
             bsl::function<void()> cb(bdlf::BindUtil::bind(
-                                          &Channel::invokeChannelDown,
+                                           &Channel::invokeChannelDown,
                                            this,
                                            self,
                                            ChannelPool::e_CHANNEL_DOWN_WRITE));
@@ -1289,14 +1410,14 @@ void Channel::notifyChannelDown(ChannelHandle             self,
                                     &d_channelPool_p->d_metricAdjustmentMutex);
 
             d_channelPool_p->d_totalBytesWrittenAdjustment +=
-                                                             d_numBytesWritten;
-            d_channelPool_p->d_totalBytesReadAdjustment    += d_numBytesRead;
+                                                             numBytesWritten();
+            d_channelPool_p->d_totalBytesReadAdjustment    += numBytesRead();
             d_channelPool_p->d_totalBytesRequestedWrittenAdjustment +=
-                                               d_numBytesRequestedToBeWritten;
+                                                numBytesRequestedToBeWritten();
 
             int rc = d_channelPool_p->d_channels.remove(d_channelId);
 
-            BSLS_ASSERT(0 == rc);
+            (void)rc; BSLS_ASSERT(0 == rc);
         }
 
         if (serializedFlag) {
@@ -1304,7 +1425,7 @@ void Channel::notifyChannelDown(ChannelHandle             self,
         }
         else {
             bsl::function<void()> cb(bdlf::BindUtil::bind(
-                                                &Channel::invokeChannelDown,
+                                                 &Channel::invokeChannelDown,
                                                  this,
                                                  self,
                                                  ChannelPool::e_CHANNEL_DOWN));
@@ -1318,7 +1439,7 @@ inline
 int Channel::protectAndCheckCallback(const ChannelHandle& self,
                                      ChannelDownMask      mask)
 {
-    BSLS_ASSERT(this == self.get());
+    (void)self; BSLS_ASSERT(this == self.get());
     BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
                                   bslmt::ThreadUtil::self(),
                                   d_eventManager_p->dispatcherThreadHandle()));
@@ -1441,7 +1562,7 @@ void Channel::readCb(ChannelHandle self)
         // Note that 'd_numBytesRead' is only updated by this callback, which
         // executes in the (single) event manager thread.
 
-        d_numBytesRead += readRet;
+        d_numBytesRead.addRelaxed(readRet);
 
         if (d_useReadTimeout) {
             lastRead = bdlt::CurrentTime::now();
@@ -1469,7 +1590,7 @@ void Channel::readCb(ChannelHandle self)
             const int rc = d_eventManager_p->rescheduleTimer(
                                                           d_readTimeoutTimerId,
                                                           timeout);
-            BSLS_ASSERT(!rc);
+            (void)rc; BSLS_ASSERT(!rc);
         }
     }
 }
@@ -1514,7 +1635,7 @@ int Channel::refillOutgoingMsg()
     // Otherwise, swap 'd_writeEnqueuedData' and 'd_writeActiveData'.
 
     d_writeEnqueuedData.swap(d_writeActiveData);
-    d_writeActiveCacheSize.addRelaxed(d_writeActiveData->length());
+    d_writeActiveQueueSize.addRelaxed(d_writeActiveData->length());
 
     return 1;
 }
@@ -1529,8 +1650,8 @@ void Channel::registerReadTimeoutCallback(bsls::TimeInterval   timeout,
 
     bsl::function<void()> readTimeoutFunctor(bdlf::BindUtil::bind(
                                                        &Channel::readTimeoutCb,
-                                                        this,
-                                                        self));
+                                                       this,
+                                                       self));
 
     d_readTimeoutTimerId = d_eventManager_p->registerTimer(timeout,
                                                            readTimeoutFunctor);
@@ -1546,8 +1667,8 @@ void Channel::registerWriteCb(ChannelHandle self)
     }
 
     bsl::function<void()> writeFunctor(bdlf::BindUtil::bind(&Channel::writeCb,
-                                                             this,
-                                                             self));
+                                                            this,
+                                                            self));
 
     int rCode = d_eventManager_p->registerSocketEvent(
                                                      this->socket()->handle(),
@@ -1672,20 +1793,74 @@ void Channel::writeCb(ChannelHandle self)
         { // Lock, just for updating the stats.
             bslmt::LockGuard<bslmt::Mutex> oGuard(&d_writeMutex);
 
-            d_numBytesWritten += writeRet;
-            d_writeActiveCacheSize.addRelaxed(-writeRet);
+            d_numBytesWritten.addRelaxed(writeRet);
+            d_writeActiveQueueSize.addRelaxed(-writeRet);
 
-            if (d_hiWatermarkHitFlag
-             && (currentWriteCacheSize() <= d_writeCacheLowWat)) {
+            if (currentWriteQueueSize() <= d_writeQueueLowWater) {
+                // The write queue size has fallen below the "low-watermark
+                // level".  The "low-watermark alert" is invoked for the user
+                // only if a "high-watermark alert" is either pending or has
+                // been delivered.
 
-                d_hiWatermarkHitFlag = false;
+                // Note that if a "low-watermark alert" has to be delivered we
+                // can always enqueue the callback (via 'execute') irrespective
+                // of whether the "high-watermark alert" is pending or has been
+                // delivered.  That guarantees that the high and low watermark
+                // callbacks are always invoked in sequence.  However, doing so
+                // is inefficient in the majority of the cases when the high
+                // watermark has been delivered and the low watermark callback
+                // can be instantly delivered instead of waiting for preceding
+                // callbacks in the execute queue to be invoked first.  So we
+                // check if the high watermark has been invoked or not and only
+                // then conditionally enqueue the low watermark callback.
 
-                oGuard.release()->unlock();
+                // See the 'Handling of "high-watermark" and "low-watermark"
+                // alerts' section in the implementation notes for details on
+                // the various states that 'd_highWatermarkAlertState' can be
+                // in.
 
-                d_channelStateCb(d_channelId,
+                int prevHighWatermarkState =
+                    d_highWatermarkAlertState.testAndSwap(
+                                                e_HIGH_WATERMARK_ALERT_PENDING,
+                                                e_LOW_WATERMARK_ALERT_PENDING);
+
+                // If a "high-watermark alert" is pending enqueue a
+                // "low-watermark alert".
+
+                if (e_HIGH_WATERMARK_ALERT_PENDING == prevHighWatermarkState) {
+                    bsl::function<void()> functor(
+                        bdlf::BindUtil::bind(
+                                        &Channel::invokeWriteQueueLowWatermark,
+                                        this,
+                                        self));
+                    d_eventManager_p->execute(functor);
+                }
+                else {
+                    prevHighWatermarkState =
+                        d_highWatermarkAlertState.testAndSwap(
+                                            e_HIGH_WATERMARK_ALERT_DELIVERED,
+                                            e_HIGH_WATERMARK_ALERT_NOT_ACTIVE);
+
+                    // If a "high-watermark alert" has been delivered *and* a
+                    // "low-watermark alert" is not pending invoke the
+                    // "low-watermark alert" right away.
+
+                    if (e_HIGH_WATERMARK_ALERT_DELIVERED ==
+                                                      prevHighWatermarkState) {
+
+                        // We reset the 'd_highWatermarkAlertState' before
+                        // invoking the low watermark callback to allow
+                        // 'write's in the callback to succeed.
+
+                        oGuard.release()->unlock();
+
+                        d_channelStateCb(
+                                 d_channelId,
                                  d_sourceId,
-                                 ChannelPool::e_WRITE_CACHE_LOWWAT,
+                                 ChannelPool::e_WRITE_QUEUE_LOWWATER,
                                  d_userData);
+                    }
+                }
             }
         } // End of the lock guard.
 
@@ -1775,14 +1950,14 @@ Channel::Channel(bslma::ManagedPtr<StreamSocket> *socket,
 , d_userData(static_cast<void *>(0))
 , d_numUsedIVecs(0)
 , d_minBytesBeforeNextCb(config.minIncomingMessageSize())
-, d_hiWatermarkHitFlag(false)
+, d_highWatermarkAlertState(e_HIGH_WATERMARK_ALERT_NOT_ACTIVE)
 , d_channelType(channelType)
 , d_enableReadFlag(false)
 , d_keepHalfOpenMode(mode)
 , d_useReadTimeout(config.readTimeout() > 0.0)
 , d_readTimeout(config.readTimeout())
-, d_writeCacheLowWat(config.writeCacheLowWatermark())
-, d_writeCacheHiWat(config.writeCacheHiWatermark())
+, d_writeQueueLowWater(config.writeQueueLowWatermark())
+, d_writeQueueHighWater(config.writeQueueHighWatermark())
 , d_minIncomingMessageSize(config.minIncomingMessageSize())
 , d_channelDownFlag(0)
 , d_channelUpFlag(0)
@@ -1793,14 +1968,14 @@ Channel::Channel(bslma::ManagedPtr<StreamSocket> *socket,
 , d_numBytesRead(0)
 , d_numBytesWritten(0)
 , d_numBytesRequestedToBeWritten(0)
-, d_recordedMaxWriteCacheSize(0)
+, d_recordedMaxWriteQueueSize(0)
 , d_readBlobFactory_p(readBlobBufferPool)
 , d_blobReadData(d_readBlobFactory_p, basicAllocator)
 , d_writeBlobFactory_p(writeBlobBufferPool)
 , d_writeActiveDataCurrentBuffer(0)
 , d_writeActiveDataCurrentOffset(0)
 , d_isWriteActive(false)
-, d_writeActiveCacheSize(0)
+, d_writeActiveQueueSize(0)
 , d_sharedPtrRepAllocator_p(sharedPtrAllocator)
 , d_allocator_p(basicAllocator)
 {
@@ -1817,7 +1992,7 @@ Channel::Channel(bslma::ManagedPtr<StreamSocket> *socket,
     int flags = fcntl(fd, F_GETFD);
     int ret   = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 
-    BSLS_ASSERT( -1 != ret);
+    (void)ret; BSLS_ASSERT( -1 != ret);
 #endif
 
     d_writeEnqueuedData.createInplace(d_allocator_p,
@@ -1843,7 +2018,7 @@ Channel::~Channel()
     // 'notifyChannelDown' has already deregistered all socket events
     // pertaining to this deallocated socket.
 
-    BSLS_ASSERT(d_recordedMaxWriteCacheSize >= 0);
+    BSLS_ASSERT(d_recordedMaxWriteQueueSize >= 0);
 }
 
 // MANIPULATORS
@@ -1892,8 +2067,8 @@ int Channel::initiateReadSequence(ChannelHandle self)
     BSLS_ASSERT(d_socket);
 
     bsl::function<void()> readFunctor = bdlf::BindUtil::bind(&Channel::readCb,
-                                                              this,
-                                                              self);
+                                                             this,
+                                                             self);
 
     int rCode = d_eventManager_p->registerSocketEvent(this->socket()->handle(),
                                                       btlso::EventType::e_READ,
@@ -1927,18 +2102,10 @@ int Channel::writeMessage(const MessageType&   msg,
 {
     typedef ChannelPool_MessageUtil MessageUtil;
 
-    enum {
-        e_CACHE_HIWAT     = -1,
-        e_HIT_CACHE_HIWAT = -2,
-        e_CHANNEL_DOWN    = -3,
-        e_ENQUEUE_WAT     = -4,
-        e_SUCCESS         =  0
-    };
-
     if (BSLS_PERFORMANCEHINT_PREDICT_UNLIKELY(
                                           isChannelDown(e_CLOSED_SEND_MASK))) {
         BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
-        return e_CHANNEL_DOWN;                                        // RETURN
+        return ChannelStatus::e_WRITE_CHANNEL_DOWN;                   // RETURN
     }
 
     bsls::Types::Int64 dataLength = MessageUtil::length(msg);
@@ -1956,51 +2123,45 @@ int Channel::writeMessage(const MessageType&   msg,
 
     bslmt::LockGuard<bslmt::Mutex> oGuard(&d_writeMutex);
 
-    d_numBytesRequestedToBeWritten += dataLength;
+    d_numBytesRequestedToBeWritten.addRelaxed(dataLength);
 
-    const int writeCacheSize = currentWriteCacheSize();
-
-    if (BSLS_PERFORMANCEHINT_PREDICT_UNLIKELY(
-                                         writeCacheSize > d_writeCacheHiWat)) {
-        BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
-        return e_CACHE_HIWAT;                                         // RETURN
-    }
+    const int writeQueueSize = currentWriteQueueSize();
+    const int writeQueueRejectLevel =
+                             bsl::min(enqueueWatermark, d_writeQueueHighWater);
 
     if (BSLS_PERFORMANCEHINT_PREDICT_UNLIKELY(
-                                          writeCacheSize > enqueueWatermark)) {
-        BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
-        d_hiWatermarkHitFlag = true;
-        return e_ENQUEUE_WAT;                                         // RETURN
-    }
+                                     writeQueueSize > writeQueueRejectLevel)) {
+        // See the 'Handling of "high-watermark" and "low-watermark" alerts'
+        // section in the implementation notes for details on the various
+        // states that 'd_highWatermarkAlertState' can be in.
 
-    if (BSLS_PERFORMANCEHINT_PREDICT_UNLIKELY(
-                            writeCacheSize + dataLength > d_writeCacheHiWat)) {
-        BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
-        if(!d_hiWatermarkHitFlag) {
-            d_hiWatermarkHitFlag = true;
+        int prevHighWatermarkState = d_highWatermarkAlertState.testAndSwap(
+                                             e_HIGH_WATERMARK_ALERT_NOT_ACTIVE,
+                                             e_HIGH_WATERMARK_ALERT_PENDING);
 
-            bsl::function<void()> functor(bdlf::BindUtil::bind(
-                                              d_channelStateCb,
-                                              d_channelId,
-                                              d_sourceId,
-                                              ChannelPool::e_WRITE_CACHE_HIWAT,
-                                              d_userData));
+        if (e_HIGH_WATERMARK_ALERT_NOT_ACTIVE == prevHighWatermarkState) {
+             bsl::function<void()> functor(
+                 bdlf::BindUtil::bind(&Channel::invokeWriteQueueHighWatermark,
+                                      this,
+                                      self));
 
             d_eventManager_p->execute(functor);
 
             // We must release the mutex AFTER 'functor' is enqueued to be
             // executed.  Otherwise, another thread can come in between and
-            // 'e_WRITE_CACHE_LOWWAT' can be generated and the flag reset to
+            // 'e_WRITE_QUEUE_LOWWATER' can be generated and the flag reset to
             // false BEFORE the callback is delivered.  This way, the user will
-            // see the following sequence: LOWWAT, HIWAT, HIWAT (maybe),
-            // LOWWAT, which is wrong, especially if no messages are queued
-            // after HIWAT.
+            // see the following sequence: LOWWATER, HIGHWATER, HIGHWATER
+            // (maybe), LOWWATER, which is wrong, especially if no messages are
+            // queued after HIGHWATER.
         }
-        return e_HIT_CACHE_HIWAT;                                     // RETURN
+        return writeQueueRejectLevel == enqueueWatermark
+            ? ChannelStatus::e_ENQUEUE_HIGHWATER
+            : ChannelStatus::e_QUEUE_HIGHWATER;                       // RETURN
     }
 
-    if (d_recordedMaxWriteCacheSize.loadRelaxed() < writeCacheSize) {
-        d_recordedMaxWriteCacheSize.storeRelaxed(writeCacheSize);
+    if (d_recordedMaxWriteQueueSize.loadRelaxed() < writeQueueSize) {
+        d_recordedMaxWriteQueueSize.storeRelaxed(writeQueueSize);
     }
 
     if (BSLS_PERFORMANCEHINT_PREDICT_LIKELY(!d_isWriteActive)) {
@@ -2021,11 +2182,12 @@ int Channel::writeMessage(const MessageType&   msg,
 
         d_isWriteActive = true; // This must be done before releasing the lock.
 
+        BSLS_ASSERT(0 != d_writeActiveData);
         BSLS_ASSERT(0 == d_writeActiveData->numBuffers());
         BSLS_ASSERT(0 == d_writeActiveDataCurrentBuffer);
         BSLS_ASSERT(0 == d_writeActiveDataCurrentOffset);
 
-        d_writeActiveCacheSize.addRelaxed(static_cast<int>(dataLength));
+        d_writeActiveQueueSize.addRelaxed(static_cast<int>(dataLength));
 
         oGuard.release()->unlock();
 
@@ -2038,7 +2200,7 @@ int Channel::writeMessage(const MessageType&   msg,
             // 'notifyChannelDown' which will run only in the dispatcher thread
             // and when 'd_isWriteActive' is 'true'.
 
-            d_numBytesWritten += writeRet;
+            d_numBytesWritten.addRelaxed(writeRet);
         }
         else if (btlso::SocketHandle::e_ERROR_WOULDBLOCK == writeRet) {
             // In case writeRet < 0, then either the socket is dead, or would
@@ -2056,10 +2218,10 @@ int Channel::writeMessage(const MessageType&   msg,
             BSLS_ASSERT(btlso::SocketHandle::e_ERROR_INTERRUPTED != writeRet);
 
             notifyChannelDown(self, btlso::Flag::e_SHUTDOWN_SEND, false);
-            return e_CHANNEL_DOWN;                                    // RETURN
+            return ChannelStatus::e_WRITE_CHANNEL_DOWN;               // RETURN
         }
 
-        d_writeActiveCacheSize.addRelaxed(-writeRet);
+        d_writeActiveQueueSize.addRelaxed(-writeRet);
 
         if (dataLength == writeRet) {
             // We succeeded in writing the whole message.  We did release the
@@ -2074,7 +2236,7 @@ int Channel::writeMessage(const MessageType&   msg,
             if (!refillOutgoingMsg()) {
                 // There isn't any pending data, our work here is done.
 
-                return e_SUCCESS;                                     // RETURN
+                return ChannelStatus::e_SUCCESS;                      // RETURN
             }
         }
         else {
@@ -2093,11 +2255,11 @@ int Channel::writeMessage(const MessageType&   msg,
 
         bsl::function<void()> initWriteFunctor(bdlf::BindUtil::bind(
                                                      &Channel::registerWriteCb,
-                                                      this,
-                                                      self));
+                                                     this,
+                                                     self));
 
         d_eventManager_p->execute(initWriteFunctor);
-        return e_SUCCESS;                                             // RETURN
+        return ChannelStatus::e_SUCCESS;                              // RETURN
     }
     BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
 
@@ -2118,100 +2280,126 @@ int Channel::writeMessage(const MessageType&   msg,
 
     MessageUtil::appendToBlob(d_writeEnqueuedData.get(), msg);
 
-    return e_SUCCESS;
+    return ChannelStatus::e_SUCCESS;
 }
 
-int Channel::setWriteCacheHiWatermark(int numBytes)
+int Channel::setWriteQueueHighWatermark(int numBytes, ChannelHandle self)
 {
     bslmt::LockGuard<bslmt::Mutex> guard(&d_writeMutex);
 
-    if (d_writeCacheLowWat > numBytes) {
-        return -1;                                                    // RETURN
-    }
-
-    setWriteCacheHiWatermarkRaw(numBytes);
+    setWriteQueueHighWatermarkRaw(numBytes, self);
 
     return 0;
 }
 
-void Channel::setWriteCacheHiWatermarkRaw(int numBytes)
+void Channel::setWriteQueueHighWatermarkRaw(int numBytes, ChannelHandle self)
 {
-    // Generate a 'HIWAT' alert if the new cache size limit is smaller than the
-    // existing cache size and a 'HIWAT' alert has not already been generated.
+    // Generate a 'HIGHWATER' alert if the new queue size limit is smaller than
+    // the existing queue size and a 'HIGHWATER' alert has not already been
+    // generated.
 
-    const int writeCacheSize = currentWriteCacheSize();
+    const int writeQueueSize = currentWriteQueueSize();
+    d_writeQueueHighWater = numBytes;
 
-    if (!d_hiWatermarkHitFlag && writeCacheSize >= numBytes) {
-        d_hiWatermarkHitFlag = true;
-        bsl::function<void()> functor(bdlf::BindUtil::bind(
-                                             &d_channelStateCb,
-                                              d_channelId,
-                                              d_sourceId,
-                                              ChannelPool::e_WRITE_CACHE_HIWAT,
-                                              d_userData));
+    if (writeQueueSize >= numBytes) {
+        // See the 'Handling of "high-watermark" and "low-watermark" alerts'
+        // section in the implementation notes for details on the various
+        // states that 'd_highWatermarkAlertState' can be in.
 
-        d_eventManager_p->execute(functor);
-    }
-    else if (writeCacheSize < numBytes) {
-        // Otherwise, if the write cache size limit is now greater than the
-        // current cache size, clear the hi-water mark hit flag so additional
-        // alerts will be generated.
+        int prevHighWatermarkState = d_highWatermarkAlertState.testAndSwap(
+                                             e_HIGH_WATERMARK_ALERT_NOT_ACTIVE,
+                                             e_HIGH_WATERMARK_ALERT_PENDING);
 
-        d_hiWatermarkHitFlag = false;
-    }
+        if (e_HIGH_WATERMARK_ALERT_NOT_ACTIVE == prevHighWatermarkState) {
+            bsl::function<void()> functor(
+                bdlf::BindUtil::bind(&Channel::invokeWriteQueueHighWatermark,
+                                     this,
+                                     self));
 
-    d_writeCacheHiWat = numBytes;
+            d_eventManager_p->execute(functor);
+        }
+     }
+
+    // It is possible that the queue size had previously exceeded the the high
+    // watermark level resulting in the enqueuing of a high-watermark alert.
+    // Now, even if the queue size is below the high watermark level we have no
+    // way of dequeuing that alert.  So we leave 'd_highWatermarkAlertState'
+    // remain unchanged.
 }
 
-int Channel::setWriteCacheLowWatermark(int numBytes)
+int Channel::setWriteQueueLowWatermark(int numBytes, ChannelHandle self)
 {
     bslmt::LockGuard<bslmt::Mutex> guard(&d_writeMutex);
 
-    if (numBytes > d_writeCacheHiWat) {
-        return -1;                                                    // RETURN
-    }
-
-    setWriteCacheLowWatermarkRaw(numBytes);
+    setWriteQueueLowWatermarkRaw(numBytes, self);
 
     return 0;
 }
 
-void Channel::setWriteCacheLowWatermarkRaw(int numBytes)
+void Channel::setWriteQueueLowWatermarkRaw(int numBytes, ChannelHandle self)
 {
-    d_writeCacheLowWat = numBytes;
+    d_writeQueueLowWater = numBytes;
 
-    if (d_hiWatermarkHitFlag
-     && (currentWriteCacheSize() <= d_writeCacheLowWat)) {
+    if (currentWriteQueueSize() <= d_writeQueueLowWater) {
+        // Add a low-watermark alert if either a high-watermark alert is
+        // already pending or has been delivered.  Dont change the state or
+        // register an alert otherwise.  See the 'Handling of "high-watermark"
+        // and "low-watermark" alerts' section in the implementation notes for
+        // details on the various states that 'd_highWatermarkAlertState' can
+        // be in.
 
-        d_hiWatermarkHitFlag = false;
-        bsl::function<void()> functor(bdlf::BindUtil::bind(
-                                            &d_channelStateCb,
-                                             d_channelId,
-                                             d_sourceId,
-                                             ChannelPool::e_WRITE_CACHE_LOWWAT,
-                                             d_userData));
+        int prevHighWatermarkState = d_highWatermarkAlertState.testAndSwap(
+                                                e_HIGH_WATERMARK_ALERT_PENDING,
+                                                e_LOW_WATERMARK_ALERT_PENDING);
 
-        d_eventManager_p->execute(functor);
+        if (e_HIGH_WATERMARK_ALERT_PENDING == prevHighWatermarkState) {
+            bsl::function<void()> functor(
+                    bdlf::BindUtil::bind(
+                                        &Channel::invokeWriteQueueLowWatermark,
+                                        this,
+                                        self));
+
+            d_eventManager_p->execute(functor);
+        }
+        else {
+            // We are guaranteed that 'd_highWatermarkAlertState' will not
+            // transition to the 'e_HIGH_WATERMARK_ALERT_PENDING' state between
+            // the two 'testAndSwap' operations in this method because this
+            // method is called with 'd_writeMutex' locked and the transition
+            // to 'e_HIGH_WATERMARK_ALERT_PENDING' can happen only in
+            // 'writeMessage' or 'setWriteQueueHighWatermark' with
+            // 'd_writeMutex' locked.
+
+            prevHighWatermarkState = d_highWatermarkAlertState.testAndSwap(
+                                              e_HIGH_WATERMARK_ALERT_DELIVERED,
+                                              e_LOW_WATERMARK_ALERT_PENDING);
+
+            if (e_HIGH_WATERMARK_ALERT_DELIVERED == prevHighWatermarkState) {
+                bsl::function<void()> functor(
+                    bdlf::BindUtil::bind(
+                                        &Channel::invokeWriteQueueLowWatermark,
+                                        this,
+                                        self));
+
+                d_eventManager_p->execute(functor);
+            }
+        }
     }
 }
 
-void Channel::setWriteCacheWatermarks(int lowWatermark, int hiWatermark)
+void Channel::setWriteQueueWatermarks(int           lowWatermark,
+                                      int           highWatermark,
+                                      ChannelHandle self)
 {
     bslmt::LockGuard<bslmt::Mutex> guard(&d_writeMutex);
 
-    if (hiWatermark < d_writeCacheLowWat) {
-        setWriteCacheLowWatermarkRaw(lowWatermark);
-        setWriteCacheHiWatermarkRaw(hiWatermark);
-    }
-    else {
-        setWriteCacheHiWatermarkRaw(hiWatermark);
-        setWriteCacheLowWatermarkRaw(lowWatermark);
-    }
+    setWriteQueueHighWatermarkRaw(highWatermark, self);
+    setWriteQueueLowWatermarkRaw(lowWatermark, self);
 }
 
-void Channel::resetRecordedMaxWriteCacheSize()
+void Channel::resetRecordedMaxWriteQueueSize()
 {
-    d_recordedMaxWriteCacheSize.storeRelaxed(currentWriteCacheSize());
+    d_recordedMaxWriteQueueSize.storeRelaxed(currentWriteQueueSize());
 }
 
 // ============================================================================
@@ -2225,8 +2413,10 @@ void Channel::resetRecordedMaxWriteCacheSize()
 // PRIVATE MANIPULATORS
 TcpTimerEventManager *ChannelPool::allocateEventManager()
 {
-    int numManagers = d_managers.size();
-    BSLS_ASSERT(numManagers == d_config.maxThreads());
+    typedef bsl::vector<TcpTimerEventManager *>::size_type size_type;
+
+    size_type numManagers = d_managers.size();
+    BSLS_ASSERT(static_cast<int>(numManagers) == d_config.maxThreads());
 
     // If there's a single thread, there's no need to choose the event manager
     // with the least usage (since there is only 1 option).
@@ -2235,7 +2425,7 @@ TcpTimerEventManager *ChannelPool::allocateEventManager()
         return d_managers[0];                                         // RETURN
     }
 
-    int result = 0;
+    size_type result = 0;
 
     // If metrics are being collected, use those metrics to determine the
     // event manager with the lowest work-load.
@@ -2246,7 +2436,7 @@ TcpTimerEventManager *ChannelPool::allocateEventManager()
 
         minMetrics += d_managers[result]->numEvents();
 
-        for (int i = 1; i < numManagers; ++i) {
+        for (size_type i = 1; i < numManagers; ++i) {
             int currentMetrics =
                          d_managers[i]->timeMetrics()->percentage(e_CPU_BOUND);
 
@@ -2264,7 +2454,7 @@ TcpTimerEventManager *ChannelPool::allocateEventManager()
         // the fewest registered events.
 
         int minEvents = d_managers[0]->numTotalSocketEvents();
-        for (int i = 1; i < numManagers; ++i) {
+        for (size_type i = 1; i < numManagers; ++i) {
             int numEvents = d_managers[i]->numTotalSocketEvents();
             if (numEvents < minEvents) {
                 minEvents = numEvents;
@@ -2358,10 +2548,12 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
          && btlso::SocketHandle::e_ERROR_INTERRUPTED != status) {
             // Deregister the socket event to avoid spewing and spinning.
 
+            const int platformErrorCode = getPlatformErrorCode();
+
             bslmt::LockGuard<bslmt::Mutex> aGuard(&d_acceptorsLock);
 
             if (server->d_isClosedFlag) {
-                d_poolStateCb(e_ERROR_ACCEPTING, serverId, e_ALERT);
+                d_poolStateCb(e_ERROR_ACCEPTING, serverId, platformErrorCode);
                 return;                                               // RETURN
             }
 
@@ -2372,9 +2564,9 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
 
             bsl::function<void()> acceptRetryFunctor(
                               bdlf::BindUtil::bind(&ChannelPool::acceptRetryCb,
-                                                    this,
-                                                    serverId,
-                                                    server));
+                                                   this,
+                                                   serverId,
+                                                   server));
 
             if (server->d_exponentialBackoff < k_MAX_EXP_BACKOFF) {
                 server->d_exponentialBackoff *= 2;
@@ -2391,7 +2583,7 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
                                                            exponentialBackoff,
                                                            acceptRetryFunctor);
 
-            d_poolStateCb(e_ERROR_ACCEPTING, serverId, e_ALERT);
+            d_poolStateCb(e_ERROR_ACCEPTING, serverId, platformErrorCode);
         }
         else {
             // Ignore blocking and interrupts, but reset the exponential
@@ -2421,7 +2613,7 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
     if (d_config.maxConnections() <= numChannels) {
         // Too many channels, move on
 
-        d_poolStateCb(e_CHANNEL_LIMIT, serverId, e_CRITICAL);
+        d_poolStateCb(e_CHANNEL_LIMIT, serverId, 0);
         return;                                                       // RETURN
     }
 
@@ -2455,7 +2647,7 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
     BSLS_ASSERT(channelHandle);
 
     int rc = d_channels.replace(newId, channelHandle);
-    BSLS_ASSERT(0 == rc);
+    (void)rc; BSLS_ASSERT(0 == rc);
 
     // Reschedule the acceptTimeoutCb.
 
@@ -2465,9 +2657,9 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
 
         bsl::function<void()> acceptTimeoutFunctor(
                             bdlf::BindUtil::bind(&ChannelPool::acceptTimeoutCb,
-                                                  this,
-                                                  serverId,
-                                                  server));
+                                                 this,
+                                                 serverId,
+                                                 server));
 
         server->d_start = bdlt::CurrentTime::now() + server->d_timeout;
         server->d_timeoutTimerId = server->d_manager_p->registerTimer(
@@ -2478,15 +2670,15 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
 
     bsl::function<void()> invokeChannelUpCommand(
                                 bdlf::BindUtil::bind(&Channel::invokeChannelUp,
-                                                      channelPtr,
-                                                      channelHandle));
+                                                     channelPtr,
+                                                     channelHandle));
 
     bsl::function<void()> initiateReadCommand;
     if (server->d_readEnabledFlag) {
         initiateReadCommand = bdlf::BindUtil::bind(
                                                 &Channel::initiateReadSequence,
-                                                 channelPtr,
-                                                 channelHandle);
+                                                channelPtr,
+                                                channelHandle);
     }
 
     manager->execute(invokeChannelUpCommand);
@@ -2495,7 +2687,7 @@ void ChannelPool::acceptCb(int serverId, bsl::shared_ptr<ServerState> server)
     }
 
     if (d_config.maxConnections() == numChannels) {
-        d_poolStateCb(e_CHANNEL_LIMIT, 0, e_ALERT);
+        d_poolStateCb(e_CHANNEL_LIMIT, 0, 0);
     }
 }
 
@@ -2514,17 +2706,18 @@ void ChannelPool::acceptRetryCb(int                          serverId,
 
     bsl::function<void()> acceptFunctor(
                                    bdlf::BindUtil::bind(&ChannelPool::acceptCb,
-                                                         this,
-                                                         serverId,
-                                                         server));
+                                                        this,
+                                                        serverId,
+                                                        server));
 
     if (0 != server->d_manager_p->registerSocketEvent(
                                                   server->d_socket_p->handle(),
                                                   btlso::EventType::e_ACCEPT,
                                                   acceptFunctor)) {
+
         close(serverId);
 
-        d_poolStateCb(e_ERROR_ACCEPTING, serverId, e_CRITICAL);
+        d_poolStateCb(e_ERROR_ACCEPTING, serverId, getPlatformErrorCode());
     }
 }
 
@@ -2543,9 +2736,9 @@ void ChannelPool::acceptTimeoutCb(int                          serverId,
 
     bsl::function<void()> acceptTimeoutFunctor(bdlf::BindUtil::bind(
                                                  &ChannelPool::acceptTimeoutCb,
-                                                  this,
-                                                  serverId,
-                                                  server));
+                                                 this,
+                                                 serverId,
+                                                 server));
 
     server->d_start += server->d_timeout;
     server->d_timeoutTimerId = server->d_manager_p->registerTimer(
@@ -2553,7 +2746,7 @@ void ChannelPool::acceptTimeoutCb(int                          serverId,
                                                          acceptTimeoutFunctor);
     BSLS_ASSERT(server->d_timeoutTimerId);
 
-    d_poolStateCb(e_ACCEPT_TIMEOUT, serverId, e_ALERT);
+    d_poolStateCb(e_ACCEPT_TIMEOUT, serverId, 0);
 }
 
 int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
@@ -2564,7 +2757,8 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                         KeepHalfOpenMode            mode,
                         bool                        isTimedFlag,
                         const bsls::TimeInterval&   timeout,
-                        const btlso::SocketOptions *socketOptions)
+                        const btlso::SocketOptions *socketOptions,
+                        int                        *platformErrorCode)
 {
     enum {
         e_AMBIGUOUS_REUSE_ADDRESS     = -11,
@@ -2585,6 +2779,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
     if (socketOptions
      && !socketOptions->reuseAddress().isNull()
      && (bool) reuseAddress != socketOptions->reuseAddress().value()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_AMBIGUOUS_REUSE_ADDRESS;                             // RETURN
     }
 
@@ -2592,6 +2789,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
 
     ServerStateMap::iterator idx = d_acceptors.find(serverId);
     if (idx != d_acceptors.end()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_DUPLICATE_ID;                                        // RETURN
     }
 
@@ -2624,6 +2824,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
 
     StreamSocket *serverSocket = d_factory.allocate();
     if (!serverSocket) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_ALLOCATE_FAILED;                                     // RETURN
     }
     ss->d_socket_p = serverSocket;
@@ -2635,6 +2838,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
     if (0 != serverSocket->setOption(btlso::SocketOptUtil::k_SOCKETLEVEL,
                                      btlso::SocketOptUtil::k_REUSEADDRESS,
                                      !!reuseAddress)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_SET_OPTION_FAILED;                                   // RETURN
     }
 
@@ -2643,15 +2849,24 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                                                         serverSocket->handle(),
                                                        *socketOptions);
         if (rc) {
+            if (platformErrorCode) {
+                *platformErrorCode = getPlatformErrorCode();
+            }
             return e_SET_SOCKET_OPTION_FAILED;                        // RETURN
         }
     }
 
     if (0 != serverSocket->bind(endpoint)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_BIND_FAILED;                                         // RETURN
     }
 
     if (0 != serverSocket->localAddress(&serverAddress)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_LOCAL_ADDRESS_FAILED;                                // RETURN
     }
 
@@ -2659,6 +2874,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
     ss->d_endpoint = serverAddress;
 
     if (0 != serverSocket->listen(backlog)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_LISTEN_FAILED;                                       // RETURN
     }
 
@@ -2668,6 +2886,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
         // when connection is present*.
 
     if (0 != serverSocket->setBlockingMode(btlso::Flag::e_NONBLOCKING_MODE)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_SET_NONBLOCKING_FAILED;                              // RETURN
     }
 
@@ -2682,6 +2903,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
     int ret   = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 
     if (-1 == ret) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_SET_CLOEXEC_FAILED;                                  // RETURN
     }
 
@@ -2703,9 +2927,9 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
 
     bsl::function<void()> acceptFunctor(bdlf::BindUtil::bind(
                                                         &ChannelPool::acceptCb,
-                                                         this,
-                                                         serverId,
-                                                         server));
+                                                        this,
+                                                        serverId,
+                                                        server));
 
     if (0 != manager->registerSocketEvent(serverSocket->handle(),
                                           btlso::EventType::e_ACCEPT,
@@ -2714,15 +2938,19 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
 
         aGuard.release()->unlock();
 
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
+
         return e_REGISTER_FAILED;                                     // RETURN
     }
 
     if (isTimedFlag) {
         bsl::function<void()> acceptTimeoutFunctor(bdlf::BindUtil::bind(
                                                  &ChannelPool::acceptTimeoutCb,
-                                                  this,
-                                                  serverId,
-                                                  server));
+                                                 this,
+                                                 serverId,
+                                                 server));
 
         ss->d_timeoutTimerId = manager->registerTimer(
                                             bdlt::CurrentTime::now() + timeout,
@@ -2797,7 +3025,7 @@ void ChannelPool::connectEventCb(ConnectorMap::iterator idx)
             cs.d_socket.reset();
             cs.d_inProgress = false;
 
-            d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+            d_poolStateCb(e_ERROR_CONNECTING, clientId, 0);
 
             if (0 == cs.d_numAttempts) {
                 // There is no reason to wait until next timeout to remove the
@@ -2862,7 +3090,7 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
                                                      cs.d_serverName.c_str(),
                                                      &errorCode);
         if (retCode) {
-            d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+            d_poolStateCb(e_ERROR_CONNECTING, clientId, errorCode);
             continueFlag = false;
         }
     }
@@ -2882,12 +3110,16 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
             }
             else {
                 d_factory.deallocate(connectionSocket);
-                d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+                d_poolStateCb(e_ERROR_CONNECTING,
+                              clientId,
+                              getPlatformErrorCode());
                 continueFlag = false;
             }
         }
         else {
-            d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+            d_poolStateCb(e_ERROR_CONNECTING,
+                          clientId,
+                          getPlatformErrorCode());
             continueFlag = false;
         }
     }
@@ -2904,7 +3136,9 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
                                                    cs.d_socketOptions.value());
 
             if (rc) {
-                d_poolStateCb(e_ERROR_SETTING_OPTIONS, clientId, e_ALERT);
+                d_poolStateCb(e_ERROR_SETTING_OPTIONS,
+                              clientId,
+                              getPlatformErrorCode());
 
                 bslmt::LockGuard<bslmt::Mutex> cGuard(&d_connectorsLock);
                 d_connectors.erase(idx);
@@ -2920,7 +3154,7 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
             if (rc) {
                 d_poolStateCb(e_ERROR_BINDING_CLIENT_ADDR,
                               clientId,
-                              e_ALERT);
+                              getPlatformErrorCode());
 
                 bslmt::LockGuard<bslmt::Mutex> cGuard(&d_connectorsLock);
                 d_connectors.erase(idx);
@@ -2939,7 +3173,7 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
                 cs.d_socket.reset();
                 cs.d_inProgress = false;
 
-                d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+                d_poolStateCb(e_ERROR_CONNECTING, clientId, 0);
                 continueFlag = false;
             }
             else {
@@ -2950,8 +3184,8 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
         else if (btlso::SocketHandle::e_ERROR_WOULDBLOCK == retCode) {
           bsl::function<void()> connectEventFunctor(
                              bdlf::BindUtil::bind(&ChannelPool::connectEventCb,
-                                                   this,
-                                                   idx));
+                                                  this,
+                                                  idx));
 
             // Keep guard active for makeM(&connectTimeoutFunctor, ...) below.
 
@@ -2965,7 +3199,9 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
         else {
             cs.d_socket.reset();
 
-            d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+            d_poolStateCb(e_ERROR_CONNECTING,
+                          clientId,
+                          getPlatformErrorCode());
             continueFlag = false;
         }
     }
@@ -2983,8 +3219,8 @@ void ChannelPool::connectInitiateCb(ConnectorMap::iterator idx)
 
     bsl::function<void()> connectTimeoutFunctor(bdlf::BindUtil::bind(
                                                 &ChannelPool::connectTimeoutCb,
-                                                 this,
-                                                 idx));
+                                                this,
+                                                idx));
 
     cs.d_timeoutTimerId = manager->registerTimer(cs.d_start,
                                                  connectTimeoutFunctor);
@@ -3008,7 +3244,7 @@ void ChannelPool::connectTimeoutCb(ConnectorMap::iterator idx)
     }
 
     // If we take the next branch, cs will become invalid.  Therefore, we need
-    // to cache some of its data fields.
+    // to queue some of its data fields.
 
     const bool removeConnectorFlag = (0 == cs.d_numAttempts);
     const bool isInProgress        = cs.d_inProgress;
@@ -3026,7 +3262,7 @@ void ChannelPool::connectTimeoutCb(ConnectorMap::iterator idx)
         // The callback was already invoked if the connection failed earlier,
         // do not invoke it twice.
 
-        d_poolStateCb(e_ERROR_CONNECTING, clientId, e_ALERT);
+        d_poolStateCb(e_ERROR_CONNECTING, clientId, 0);
     }
 
     if (removeConnectorFlag) {
@@ -3068,7 +3304,7 @@ void ChannelPool::importCb(StreamSocket                    *socket_p,
 
     // Always executed in the source event manager's dispatcher thread.
 
-    BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
+    (void)srcManager; BSLS_ASSERT(bslmt::ThreadUtil::isEqual(
                                         bslmt::ThreadUtil::self(),
                                         srcManager->dispatcherThreadHandle()));
 
@@ -3105,19 +3341,19 @@ void ChannelPool::importCb(StreamSocket                    *socket_p,
     BSLS_ASSERT(channelHandle);
 
     int rc = d_channels.replace(newId, channelHandle);
-    BSLS_ASSERT(0 == rc);
+    (void)rc; BSLS_ASSERT(0 == rc);
 
     bsl::function<void()> invokeChannelUpCommand(bdlf::BindUtil::bind(
                                                      &Channel::invokeChannelUp,
-                                                      channelPtr,
-                                                      channelHandle));
+                                                     channelPtr,
+                                                     channelHandle));
 
     bsl::function<void()> initiateReadCommand;
     if (readEnabledFlag) {
         initiateReadCommand = bdlf::BindUtil::bind(
                                                 &Channel::initiateReadSequence,
-                                                 channelPtr,
-                                                 channelHandle);
+                                                channelPtr,
+                                                channelHandle);
     }
 
     manager->execute(invokeChannelUpCommand);
@@ -3127,7 +3363,7 @@ void ChannelPool::importCb(StreamSocket                    *socket_p,
     }
 
     if (d_config.maxConnections() == d_channels.length()) {
-        d_poolStateCb(e_CHANNEL_LIMIT, sourceId, e_ALERT);
+        d_poolStateCb(e_CHANNEL_LIMIT, sourceId, 0);
     }
 }
 
@@ -3156,8 +3392,8 @@ void ChannelPool::timerCb(int clockId)
 
         bsl::function<void()> functor(bdlf::BindUtil::bind(
                                                          &ChannelPool::timerCb,
-                                                          this,
-                                                          clockId));
+                                                         this,
+                                                         clockId));
 
         ts.d_eventManagerId = ts.d_eventManager_p->registerTimer(
                                                              ts.d_absoluteTime,
@@ -3177,14 +3413,16 @@ void ChannelPool::timerCb(int clockId)
 
 void ChannelPool::metricsCb()
 {
+    typedef bsl::vector<TcpTimerEventManager *>::size_type size_type;
+
     int s = 0;
     BSLS_ASSERT(static_cast<int>(d_managers.size()) <= d_config.maxThreads());
-    int numManagers = d_managers.size();
+    size_type numManagers = d_managers.size();
 
     BSLS_ASSERT(0 < numManagers);
     BSLS_ASSERT(0 < d_config.maxThreads());
 
-    for (int i = 0; i < numManagers; ++i) {
+    for (size_type i = 0; i < numManagers; ++i) {
         s += d_managers[i]->timeMetrics()->percentage(e_CPU_BOUND);
         d_managers[i]->timeMetrics()->resetAll();
     }
@@ -3292,8 +3530,10 @@ ChannelPool::~ChannelPool()
 
     // Deallocate event managers.
 
-    int numEventManagers = d_managers.size();
-    for (int i = 0; i < numEventManagers; ++i) {
+    typedef bsl::vector<TcpTimerEventManager *>::size_type size_type;
+
+    size_type numEventManagers = d_managers.size();
+    for (size_type i = 0; i < numEventManagers; ++i) {
         d_allocator_p->deleteObjectRaw(d_managers[i]);
     }
 }
@@ -3350,7 +3590,8 @@ int ChannelPool::listen(int                         port,
                         int                         serverId,
                         int                         reuseAddress,
                         bool                        readEnabledFlag,
-                        const btlso::SocketOptions *socketOptions)
+                        const btlso::SocketOptions *socketOptions,
+                        int                        *platformErrorCode)
 {
     enum { e_IS_NOT_TIMED = 0 };
 
@@ -3365,7 +3606,8 @@ int ChannelPool::listen(int                         port,
                         e_CLOSE_BOTH,
                         e_IS_NOT_TIMED,
                         bsls::TimeInterval(),
-                        socketOptions);
+                        socketOptions,
+                        platformErrorCode);
 }
 
 int ChannelPool::listen(int                         port,
@@ -3374,7 +3616,8 @@ int ChannelPool::listen(int                         port,
                         const bsls::TimeInterval&   timeout,
                         int                         reuseAddress,
                         bool                        readEnabledFlag,
-                        const btlso::SocketOptions *socketOptions)
+                        const btlso::SocketOptions *socketOptions,
+                        int                        *platformErrorCode)
 {
     enum { e_IS_TIMED = 1 };
 
@@ -3389,7 +3632,8 @@ int ChannelPool::listen(int                         port,
                         e_CLOSE_BOTH,
                         e_IS_TIMED,
                         timeout,
-                        socketOptions);
+                        socketOptions,
+                        platformErrorCode);
 }
 
 int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
@@ -3397,7 +3641,8 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                         int                         serverId,
                         int                         reuseAddress,
                         bool                        readEnabledFlag,
-                        const btlso::SocketOptions *socketOptions)
+                        const btlso::SocketOptions *socketOptions,
+                        int                        *platformErrorCode)
 {
     enum { e_IS_NOT_TIMED = 0 };
 
@@ -3409,7 +3654,8 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                         e_CLOSE_BOTH,
                         e_IS_NOT_TIMED,
                         bsls::TimeInterval(),
-                        socketOptions);
+                        socketOptions,
+                        platformErrorCode);
 }
 
 int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
@@ -3419,7 +3665,8 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                         int                         reuseAddress,
                         bool                        readEnabledFlag,
                         KeepHalfOpenMode            mode,
-                        const btlso::SocketOptions *socketOptions)
+                        const btlso::SocketOptions *socketOptions,
+                        int                        *platformErrorCode)
 {
     enum { e_IS_TIMED = 1 };
 
@@ -3431,7 +3678,8 @@ int ChannelPool::listen(const btlso::IPv4Address&   endpoint,
                         mode,
                         e_IS_TIMED,
                         timeout,
-                        socketOptions);
+                        socketOptions,
+                        platformErrorCode);
 }
 
                          // *** Client-related section
@@ -3446,13 +3694,17 @@ int ChannelPool::connect(
                                               *socket,
                     ConnectResolutionMode      resolutionMode,
                     bool                       readEnabledFlag,
-                    KeepHalfOpenMode           halfCloseMode)
+                    KeepHalfOpenMode           halfCloseMode,
+                    int                       *platformErrorCode)
 {
     BSLS_ASSERT(0 < numAttempts);
     BSLS_ASSERT(bsls::TimeInterval(0) < interval || 1 == numAttempts);
 
     if (0 != socket
      && 0 != (*socket)->setBlockingMode(btlso::Flag::e_NONBLOCKING_MODE)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_SET_NONBLOCKING_FAILED;                              // RETURN
     }
 
@@ -3466,7 +3718,8 @@ int ChannelPool::connect(
                       readEnabledFlag,
                       halfCloseMode,
                       0,
-                      0);
+                      0,
+                      platformErrorCode);
 }
 
 int ChannelPool::connect(
@@ -3477,13 +3730,17 @@ int ChannelPool::connect(
                     bslma::ManagedPtr<btlso::StreamSocket<btlso::IPv4Address> >
                                               *socket,
                     bool                       readEnabledFlag,
-                    KeepHalfOpenMode           mode)
+                    KeepHalfOpenMode           mode,
+                    int                       *platformErrorCode)
 {
     BSLS_ASSERT(0 < numAttempts);
     BSLS_ASSERT(bsls::TimeInterval(0) < interval || 1 == numAttempts);
 
     if (0 != socket
      && 0 != (*socket)->setBlockingMode(btlso::Flag::e_NONBLOCKING_MODE)) {
+        if (platformErrorCode) {
+            *platformErrorCode = getPlatformErrorCode();
+        }
         return e_SET_NONBLOCKING_FAILED;                              // RETURN
     }
 
@@ -3495,7 +3752,8 @@ int ChannelPool::connect(
                       readEnabledFlag,
                       mode,
                       0,
-                      0);
+                      0,
+                      platformErrorCode);
 }
 
 int ChannelPool::connectImp(
@@ -3510,11 +3768,15 @@ int ChannelPool::connectImp(
                     bool                        readEnabledFlag,
                     KeepHalfOpenMode            keepHalfOpenMode,
                     const btlso::SocketOptions *socketOptions,
-                    const btlso::IPv4Address   *localAddress)
+                    const btlso::IPv4Address   *localAddress,
+                    int                        *platformErrorCode)
 {
     BSLS_ASSERT(0 == socketOptions || (0 == socket && 0 == localAddress));
 
     if (!d_startFlag) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_RUNNING;                                         // RETURN
     }
 
@@ -3522,6 +3784,9 @@ int ChannelPool::connectImp(
 
     ConnectorMap::iterator idx = d_connectors.find(clientId);
     if (idx != d_connectors.end()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_DUPLICATE_ID;                                        // RETURN
     }
 
@@ -3536,6 +3801,9 @@ int ChannelPool::connectImp(
         if (btlso::ResolveUtil::getAddress(&serverAddress,
                                            serverName,
                                            &errorCode)) {
+            if (platformErrorCode) {
+                *platformErrorCode = errorCode;
+            }
             return e_FAILED_RESOLUTION;                               // RETURN
         }
         resolutionFlag = false;
@@ -3581,7 +3849,7 @@ int ChannelPool::connectImp(
 
     manager->execute(connectFunctor);
 
-    return e_SUCCESS;
+    return ChannelStatus::e_SUCCESS;
 }
 
 int ChannelPool::connectImp(
@@ -3594,11 +3862,15 @@ int ChannelPool::connectImp(
                     bool                        readEnabledFlag,
                     KeepHalfOpenMode            mode,
                     const btlso::SocketOptions *socketOptions,
-                    const btlso::IPv4Address   *localAddress)
+                    const btlso::IPv4Address   *localAddress,
+                    int                        *platformErrorCode)
 {
     BSLS_ASSERT(0 == socketOptions || 0 == socket);
 
     if (!d_startFlag) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_RUNNING;                                         // RETURN
     }
 
@@ -3606,6 +3878,9 @@ int ChannelPool::connectImp(
 
     ConnectorMap::iterator idx = d_connectors.find(clientId);
     if (idx != d_connectors.end()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_DUPLICATE_ID;                                        // RETURN
     }
 
@@ -3642,7 +3917,7 @@ int ChannelPool::connectImp(
 
     manager->execute(connectFunctor);
 
-    return e_SUCCESS;
+    return ChannelStatus::e_SUCCESS;
 }
 
                          // *** Channel management ***
@@ -3667,9 +3942,9 @@ int ChannelPool::disableRead(int channelId)
     else {
         bsl::function<void()> disableReadCommand(bdlf::BindUtil::bind(
                                                          &Channel::disableRead,
-                                                          channel,
-                                                          channelHandle,
-                                                          false));
+                                                         channel,
+                                                         channelHandle,
+                                                         false));
 
         channel->eventManager()->execute(disableReadCommand);
     }
@@ -3690,8 +3965,8 @@ int ChannelPool::enableRead(int channelId)
 
     bsl::function<void()> initiateReadCommand(bdlf::BindUtil::bind(
                                                 &Channel::initiateReadSequence,
-                                                 channel,
-                                                 channelHandle));
+                                                channel,
+                                                channelHandle));
 
     channel->eventManager()->execute(initiateReadCommand);
     return 0;
@@ -3721,15 +3996,15 @@ int ChannelPool::import(
 
     bsl::function<void()> importFunctor(
                                    bdlf::BindUtil::bind(&ChannelPool::importCb,
-                                                         this,
-                                                         pointer,
-                                                         deleter,
-                                                         manager,
-                                                         manager,
-                                                         sourceId,
-                                                         readEnabledFlag,
-                                                         mode,
-                                                         true));
+                                                        this,
+                                                        pointer,
+                                                        deleter,
+                                                        manager,
+                                                        manager,
+                                                        sourceId,
+                                                        readEnabledFlag,
+                                                        mode,
+                                                        true));
 
     manager->execute(importFunctor);
     return e_SUCCESS;
@@ -3744,7 +4019,7 @@ int ChannelPool::shutdown(int                       channelId,
                           btlso::Flag::ShutdownType type,
                           ShutdownMode              how)
 {
-    BSLS_ASSERT(e_IMMEDIATE == how);
+    (void)how; BSLS_ASSERT(e_IMMEDIATE == how);
 
     enum {
         e_NOT_FOUND    = -1,
@@ -3785,7 +4060,7 @@ int ChannelPool::stopAndRemoveAllChannels()
     // function so another thread does not succeed in calling 'start' before
     // this function returns.
 
-    const int numManagers = d_managers.size();
+    const int numManagers = static_cast<int>(d_managers.size());
     for (int i = 0; i < numManagers; ++i) {
         if (d_managers[i]->disable()) {
            while(--i >= 0) {
@@ -3793,7 +4068,7 @@ int ChannelPool::stopAndRemoveAllChannels()
                attr.setStackSize(d_config.threadStackSize());
 
                int rc = d_managers[i]->enable(attr);
-               BSLS_ASSERT(0 == rc);
+               (void)rc; BSLS_ASSERT(0 == rc);
            }
            return -1;                                                 // RETURN
         }
@@ -3831,7 +4106,7 @@ int ChannelPool::stopAndRemoveAllChannels()
     return 0;
 }
 
-int ChannelPool::setWriteCacheHiWatermark(int channelId, int numBytes)
+int ChannelPool::setWriteQueueHighWatermark(int channelId, int numBytes)
 {
     BSLS_ASSERT(0 <= numBytes);
 
@@ -3841,10 +4116,10 @@ int ChannelPool::setWriteCacheHiWatermark(int channelId, int numBytes)
     }
     BSLS_ASSERT(channelHandle);
 
-    return channelHandle->setWriteCacheHiWatermark(numBytes);
+    return channelHandle->setWriteQueueHighWatermark(numBytes, channelHandle);
 }
 
-int ChannelPool::setWriteCacheLowWatermark(int channelId, int numBytes)
+int ChannelPool::setWriteQueueLowWatermark(int channelId, int numBytes)
 {
     BSLS_ASSERT(0 <= numBytes);
 
@@ -3854,15 +4129,15 @@ int ChannelPool::setWriteCacheLowWatermark(int channelId, int numBytes)
     }
     BSLS_ASSERT(channelHandle);
 
-    return channelHandle->setWriteCacheLowWatermark(numBytes);
+    return channelHandle->setWriteQueueLowWatermark(numBytes, channelHandle);
 }
 
-int ChannelPool::setWriteCacheWatermarks(int channelId,
+int ChannelPool::setWriteQueueWatermarks(int channelId,
                                          int lowWatermark,
-                                         int hiWatermark)
+                                         int highWatermark)
 {
     BSLS_ASSERT(0 <= lowWatermark);
-    BSLS_ASSERT(lowWatermark <= hiWatermark);
+    BSLS_ASSERT(0 <= highWatermark);
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
@@ -3870,12 +4145,14 @@ int ChannelPool::setWriteCacheWatermarks(int channelId,
     }
     BSLS_ASSERT(channelHandle);
 
-    channelHandle->setWriteCacheWatermarks(lowWatermark, hiWatermark);
+    channelHandle->setWriteQueueWatermarks(lowWatermark,
+                                           highWatermark,
+                                           channelHandle);
 
     return 0;
 }
 
-int ChannelPool::resetRecordedMaxWriteCacheSize(int channelId)
+int ChannelPool::resetRecordedMaxWriteQueueSize(int channelId)
 {
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
@@ -3883,7 +4160,7 @@ int ChannelPool::resetRecordedMaxWriteCacheSize(int channelId)
     }
     BSLS_ASSERT(channelHandle);
 
-    channelHandle->resetRecordedMaxWriteCacheSize();
+    channelHandle->resetRecordedMaxWriteQueueSize();
 
     return 0;
 }
@@ -3894,7 +4171,7 @@ int ChannelPool::start()
 {
     bslmt::LockGuard<bslmt::Mutex> guard(&d_managersStateChangeLock);
 
-    int numManagers = d_managers.size();
+    int numManagers = static_cast<int>(d_managers.size());
     for (int i = 0; i < numManagers; ++i) {
         bslmt::ThreadAttributes attr;
         attr.setStackSize(d_config.threadStackSize());
@@ -3902,7 +4179,7 @@ int ChannelPool::start()
         if (0 != ret) {
            while(--i >= 0) {
                int rc = d_managers[i]->disable();
-               BSLS_ASSERT(0 == rc);
+               (void)rc; BSLS_ASSERT(0 == rc);
            }
            return ret;                                                // RETURN
         }
@@ -3915,14 +4192,14 @@ int ChannelPool::stop()
 {
     bslmt::LockGuard<bslmt::Mutex> guard(&d_managersStateChangeLock);
 
-    int numManagers = d_managers.size();
+    int numManagers = static_cast<int>(d_managers.size());
     for (int i = 0; i < numManagers; ++i) {
         if (d_managers[i]->disable()) {
            while(--i >= 0) {
                bslmt::ThreadAttributes attr;
                attr.setStackSize(d_config.threadStackSize());
                int rc = d_managers[i]->enable(attr);
-               BSLS_ASSERT(0 == rc);
+               (void)rc; BSLS_ASSERT(0 == rc);
            }
            return -1;                                                 // RETURN
         }
@@ -4030,8 +4307,8 @@ int ChannelPool::registerClock(const bsl::function<void()>& command,
     ts.d_callback       = command;
 
     bsl::function<void()> functor(bdlf::BindUtil::bind(&ChannelPool::timerCb,
-                                                        this,
-                                                        clockId));
+                                                       this,
+                                                       clockId));
 
     bslmt::LockGuard<bslmt::Mutex> tGuard(&d_timersLock);
     if (d_timers.end() != d_timers.find(clockId)) {
@@ -4072,8 +4349,8 @@ int ChannelPool::registerClock(const bsl::function<void()>& command,
     ts.d_callback       = command;
 
     bsl::function<void()> functor(bdlf::BindUtil::bind(&ChannelPool::timerCb,
-                                                        this,
-                                                        clockId));
+                                                       this,
+                                                       clockId));
 
     bslmt::LockGuard<bslmt::Mutex> tGuard(&d_timersLock);
     if (d_timers.end() != d_timers.find(clockId)) {
@@ -4126,23 +4403,35 @@ void ChannelPool::deregisterClock(int clockId)
                            // *** Socket options ***
 
 int ChannelPool::getLingerOption(
-                             btlso::SocketOptUtil::LingerData *result,
-                             int                               channelId) const
+                     btlso::SocketOptUtil::LingerData *result,
+                     int                               channelId,
+                     int                              *platformErrorCode) const
 {
     enum  { e_NOT_FOUND = 1 };
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
-    return channelHandle->socket()->lingerOption(result);
+
+    const int rc = channelHandle->socket()->lingerOption(result);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
 int
 ChannelPool::getServerSocketOption(int *result,
                                    int  option,
                                    int  level,
-                                   int  serverId) const
+                                   int  serverId,
+                                   int *platformErrorCode) const
 {
     enum { e_NOT_FOUND = 1 };
 
@@ -4150,16 +4439,28 @@ ChannelPool::getServerSocketOption(int *result,
 
     ServerStateMap::const_iterator idx = d_acceptors.find(serverId);
     if (idx == d_acceptors.end()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
 
-    return idx->second->d_socket_p->socketOption(result, level, option);
+    const int rc = idx->second->d_socket_p->socketOption(result,
+                                                         level,
+                                                         option);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
 int ChannelPool::getSocketOption(int *result,
                                  int  option,
                                  int  level,
-                                 int  channelId) const
+                                 int  channelId,
+                                 int *platformErrorCode) const
 {
     BSLS_ASSERT(result);
 
@@ -4167,30 +4468,52 @@ int ChannelPool::getSocketOption(int *result,
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
 
-    return channelHandle->socket()->socketOption(result, level, option);
+    const int rc = channelHandle->socket()->socketOption(result,
+                                                         level,
+                                                         option);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
 int ChannelPool::setLingerOption(
-                             const btlso::SocketOptUtil::LingerData& value,
-                             int                                     channelId)
+                    const btlso::SocketOptUtil::LingerData&  value,
+                    int                                      channelId,
+                    int                                     *platformErrorCode)
 {
     enum  { e_NOT_FOUND = 1 };
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
 
-    return channelHandle->socket()->setLingerOption(value);
+    const int rc = channelHandle->socket()->setLingerOption(value);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
-int ChannelPool::setServerSocketOption(int option,
-                                       int level,
-                                       int value,
-                                       int serverId)
+int ChannelPool::setServerSocketOption(int  option,
+                                       int  level,
+                                       int  value,
+                                       int  serverId,
+                                       int *platformErrorCode)
 {
     enum  { e_NOT_FOUND = 1 };
 
@@ -4198,26 +4521,45 @@ int ChannelPool::setServerSocketOption(int option,
 
     ServerStateMap::const_iterator idx = d_acceptors.find(serverId);
     if (idx == d_acceptors.end()) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
     BSLS_ASSERT(idx->second->d_socket_p);
 
-    return idx->second->d_socket_p->setOption(level, option, value);
+    const int rc = idx->second->d_socket_p->setOption(level, option, value);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
-int ChannelPool::setSocketOption(int option,
-                                 int level,
-                                 int value,
-                                 int channelId)
+int ChannelPool::setSocketOption(int  option,
+                                 int  level,
+                                 int  value,
+                                 int  channelId,
+                                 int *platformErrorCode)
 {
     enum  { e_NOT_FOUND = 1 };
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return e_NOT_FOUND;                                           // RETURN
     }
 
-    return channelHandle->socket()->setOption(level, option, value);
+    const int rc = channelHandle->socket()->setOption(level, option, value);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
                               // *** Metrics ***
@@ -4348,16 +4690,16 @@ int ChannelPool::getChannelStatistics(
     return 1;
 }
 
-int ChannelPool::getChannelWriteCacheStatistics(int *recordedMaxWriteCacheSize,
-                                                int *currentWriteCacheSize,
+int ChannelPool::getChannelWriteQueueStatistics(int *recordedMaxWriteQueueSize,
+                                                int *currentWriteQueueSize,
                                                 int  channelId) const
 {
     ChannelHandle channelHandle;
     if (0 == findChannelHandle(&channelHandle, channelId)) {
         Channel *channel = channelHandle.get();
 
-        *recordedMaxWriteCacheSize = channel->recordedMaxWriteCacheSize();
-        *currentWriteCacheSize     = channel->currentWriteCacheSize();
+        *recordedMaxWriteQueueSize = channel->recordedMaxWriteQueueSize();
+        *currentWriteQueueSize     = channel->currentWriteQueueSize();
 
         return 0;                                                     // RETURN
     }
@@ -4373,8 +4715,9 @@ void ChannelPool::getHandleStatistics(
     // 2. Those being in connection (ConnectorMap)
     // 3. The active channels (either imported, connected, or accepted, found
     //    in the 'd_channels' catalog)
+    typedef bsl::vector<HandleInfo>::size_type size_type;
 
-    int idx = handleInfo->size();
+    size_type idx = handleInfo->size();
 
     {
         // Item 1.  Oops: misses sockets after accept(&connection) but before
@@ -4470,16 +4813,26 @@ ChannelPool::getServerAddress(btlso::IPv4Address *result,
 
 int
 ChannelPool::getLocalAddress(btlso::IPv4Address *result,
-                             int                 channelId) const
+                             int                 channelId,
+                             int                *platformErrorCode) const
 {
     BSLS_ASSERT(result);
 
     ChannelHandle channelHandle;
     if (0 != findChannelHandle(&channelHandle, channelId)) {
+        if (platformErrorCode) {
+            *platformErrorCode = 0;
+        }
         return -1;                                                    // RETURN
     }
 
-    return channelHandle->socket()->localAddress(result);
+    const int rc = channelHandle->socket()->localAddress(result);
+
+    if (rc && platformErrorCode) {
+        *platformErrorCode = getPlatformErrorCode();
+    }
+
+    return rc;
 }
 
 int

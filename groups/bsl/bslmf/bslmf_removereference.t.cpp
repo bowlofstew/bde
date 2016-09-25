@@ -108,7 +108,7 @@ typedef char ( &&RRA)[5];
 #endif
 
 #define ASSERT_SAME(X, Y)                                                     \
-    ASSERT((bsl::is_same<bsl::remove_reference<X>::type, Y>::value))
+    ASSERT((bsl::is_same<bsl::remove_reference<X>::type, Y>::value));
 
 #define ASSERT_REMOVE_REF(X, Y)                                               \
     ASSERT_SAME(X, Y)                                                         \
@@ -117,7 +117,7 @@ typedef char ( &&RRA)[5];
     ASSERT_SAME(const volatile X, const volatile Y)
 
 #define ASSERT_SAME2(X, Y)                                                    \
-    ASSERT((bsl::is_same<bslmf::RemoveReference<X>::Type, Y>::value))
+    ASSERT((bsl::is_same<bslmf::RemoveReference<X>::Type, Y>::value));
 
 #define ASSERT_REMOVE_REF2(X, Y)                                              \
     ASSERT_SAME2(X, Y)                                                        \
@@ -131,12 +131,15 @@ typedef char ( &&RRA)[5];
 
 int main(int argc, char *argv[])
 {
-    int test = argc > 1 ? atoi(argv[1]) : 0;
-    int verbose = argc > 2;
-    int veryVerbose = argc > 3;
+    int                 test = argc > 1 ? atoi(argv[1]) : 0;
+    bool             verbose = argc > 2;
+    bool         veryVerbose = argc > 3;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
 
-    (void) verbose;          // eliminate unused variable warning
-    (void) veryVerbose;      // eliminate unused variable warning
+    (void)veryVerbose;          // suppress warning
+    (void)veryVeryVerbose;      // suppress warning
+    (void)veryVeryVeryVerbose;  // suppress warning
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 

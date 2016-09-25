@@ -1,12 +1,12 @@
 // bslstl_allocatortraits.cpp                                         -*-C++-*-
 #include <bslstl_allocatortraits.h>
 
-#ifdef TESTING
-//#include <bslma_testallocator.h>                    // for testing only
-//#include <bslma_default.h>                          // for testing only
-//#include <bslstl_allocator.h>                       // for testing only
-//#include <bslalg_typetraithasstliterators.h>        // for testing only
-#endif
+#include <bsls_ident.h>
+BSLS_IDENT("$Id$ $CSID$")
+
+namespace BloombergLP {
+
+}  // close namespace BloombergLP
 
 // ----------------------------------------------------------------------------
 // Copyright 2013 Bloomberg Finance L.P.

@@ -93,6 +93,7 @@ using namespace bsl;
 // [ 5] ostream& print(ostream& os, int level = 0, int spl = 4) const;
 //
 // FREE OPERATORS
+// [18] void hashAppend(HASHALG&, const Time&);
 // [14] DatetimeInterval operator-(const Time& lhs, const Time& rhs);
 // [ 6] bool operator==(const Time& lhs, const Time& rhs);
 // [ 6] bool operator!=(const Time& lhs, const Time& rhs);
@@ -190,7 +191,7 @@ int main(int argc, char *argv[])
     cout << "TEST " << __FILE__ << " CASE " << test << endl;
 
     switch (test) { case 0:
-      case 18: {
+      case 19: {
         // --------------------------------------------------------------------
         // USAGE EXAMPLE
         //   Extracted from component header file.
@@ -279,6 +280,95 @@ if (veryVerbose)
 //  14:39:07.000
 //..
 
+      } break;
+      case 18: {
+        // --------------------------------------------------------------------
+        // TESTING: hashAppend
+        //
+        // Concerns:
+        //: 1 Hashes different inputs differently
+        //
+        //: 2 Hashes equal inputs identically
+        //
+        //: 3 Works for const and non-const times
+        //
+        // Plan:
+        //: 1 Brute force test of a few hand picked values, ensuring that
+        //    hashes of equivalent values match and hashes of unequal values do
+        //    not.
+        //
+        // Testing:
+        //    void hashAppend(HASHALG&, const Time&);
+        // --------------------------------------------------------------------
+        if (verbose) cout << "\nTESTING 'hashAppend'"
+                          << "\n====================\n";
+
+        if (verbose) cout << "Brute force test of several times." << endl;
+        {
+            typedef ::BloombergLP::bslh::Hash<> Hasher;
+
+            bdlt::Time       t1;
+            bdlt::Time       t2( 0,  1,  1,  20);
+            bdlt::Time       t3( 0,  1,  1,  20);
+            bdlt::Time       t4(15, 11, 30, 500);
+            const bdlt::Time t5(15, 11, 30, 500);
+            const bdlt::Time t6(15, 11, 30, 501);
+
+            Hasher hasher;
+            Hasher::result_type a1 = hasher(t1), a2 = hasher(t2),
+                                a3 = hasher(t3), a4 = hasher(t4),
+                                a5 = hasher(t5), a6 = hasher(t6);
+
+            if (veryVerbose) {
+                cout << "\tHash of " << t1 << " is " << a1 << endl;
+                cout << "\tHash of " << t2 << " is " << a2 << endl;
+                cout << "\tHash of " << t3 << " is " << a3 << endl;
+                cout << "\tHash of " << t4 << " is " << a4 << endl;
+                cout << "\tHash of " << t5 << " is " << a5 << endl;
+                cout << "\tHash of " << t6 << " is " << a6 << endl;
+            }
+
+            ASSERT(a1 != a2);
+            ASSERT(a1 != a3);
+            ASSERT(a1 != a4);
+            ASSERT(a1 != a5);
+            ASSERT(a1 != a6);
+            if (veryVerbose) {
+                cout << "\tt1/d2: " << int(a1 != a2)
+                     << ", t1/d3: " << int(a1 != a3)
+                     << ", t1/d4: " << int(a1 != a4)
+                     << ", t1/d5: " << int(a1 != a5)
+                     << ", t1/d6: " << int(a1 != a6) << endl;
+            }
+            ASSERT(a2 == a3);
+            ASSERT(a2 != a4);
+            ASSERT(a2 != a5);
+            ASSERT(a2 != a6);
+            if (veryVerbose) {
+                cout << "\tt2/t3: " << int(a2 != a3)
+                     << ", t2/t4: " << int(a2 != a4)
+                     << ", t2/t5: " << int(a2 != a5)
+                     << ", t2/t6: " << int(a2 != a6) << endl;
+            }
+            ASSERT(a3 != a4);
+            ASSERT(a3 != a5);
+            ASSERT(a3 != a6);
+            if (veryVerbose) {
+                cout << "\tt3/t4: " << int(a3 != a4)
+                     << ", t3/t5: " << int(a3 != a5)
+                     << ", t3/t6: " << int(a3 != a6) << endl;
+            }
+            ASSERT(a4 == a5);
+            ASSERT(a4 != a6);
+            if (veryVerbose) {
+                cout << "\tt4/t5: " << int(a4 != a5)
+                     << ", t4/t6: " << int(a4 != a6) << endl;
+            }
+            ASSERT(a5 != a6);
+            if (veryVerbose) {
+                cout << "\tt5/t6: " << int(a5 != a6) << endl;
+            }
+        }
       } break;
       case 17: {
         // --------------------------------------------------------------------
@@ -2036,14 +2126,14 @@ if (veryVerbose)
         }
         {
             static const struct {
-                int         d_lineNum;      // source line number
-                int         d_hour;         // specification hour
-                int         d_minute;       // specification minute
-                int         d_second;       // specification second
-                int         d_millisecond;  // specification millisecond
-                int         d_version;      // version to stream with
-                int         d_length;       // expect output length
-                const char *d_fmt_p;        // expected output format
+                int          d_lineNum;      // source line number
+                int          d_hour;         // specification hour
+                int          d_minute;       // specification minute
+                int          d_second;       // specification second
+                int          d_millisecond;  // specification millisecond
+                int          d_version;      // version to stream with
+                bsl::size_t  d_length;       // expect output length
+                const char  *d_fmt_p;        // expected output format
             } DATA[] = {
                 //LINE  HOUR  MIN  SEC    MS   VER  LEN  FORMAT
                 //----  ----  ---  ---  -----  ---  ---  -------------------
@@ -2059,7 +2149,7 @@ if (veryVerbose)
                 const int         SECOND      = DATA[i].d_second;
                 const int         MILLISECOND = DATA[i].d_millisecond;
                 const int         VERSION     = DATA[i].d_version;
-                const int         LEN         = DATA[i].d_length;
+                const bsl::size_t LEN         = DATA[i].d_length;
                 const char *const FMT         = DATA[i].d_fmt_p;
 
                 // Test using class methods.
@@ -2078,7 +2168,7 @@ if (veryVerbose)
                     if (verbose && memcmp(out.data(), FMT, LEN)) {
                         const char *hex = "0123456789abcdef";
                         P_(LINE);
-                        for (int j = 0; j < out.length(); ++j) {
+                        for (bsl::size_t j = 0; j < out.length(); ++j) {
                             cout << "\\x"
                                  << hex[static_cast<unsigned char>
                                             ((*(out.data() + j) >> 4) & 0x0f)]
@@ -2116,7 +2206,7 @@ if (veryVerbose)
                     if (verbose && memcmp(out.data(), FMT, LEN)) {
                         const char *hex = "0123456789abcdef";
                         P_(LINE);
-                        for (int j = 0; j < out.length(); ++j) {
+                        for (bsl::size_t j = 0; j < out.length(); ++j) {
                             cout << "\\x"
                                  << hex[static_cast<unsigned char>
                                             ((*(out.data() + j) >> 4) & 0x0f)]

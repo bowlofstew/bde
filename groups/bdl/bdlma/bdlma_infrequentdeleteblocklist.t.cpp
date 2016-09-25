@@ -34,9 +34,12 @@ using namespace bsl;
 //-----------------------------------------------------------------------------
 // [ 2] bdlma::InfrequentDeleteBlockList(bslma::Allocator *ba = 0);
 // [ 3] ~bdlma::InfrequentDeleteBlockList();
-// [ 2] void *allocate(int size);
+// [ 2] void *allocate(bsls::Types::size_type size);
 // [ 4] void deallocate(void *address);
 // [ 3] void release();
+//
+// // ACCESSORS
+// [ 2] bslma::Allocator *allocator() const;
 //-----------------------------------------------------------------------------
 // [ 1] BREATHING TEST
 // [ 5] USAGE EXAMPLE
@@ -114,9 +117,10 @@ struct Block {
 };
 
 static inline
-int roundUp(int x, int y)
+bsls::Types::size_type roundUp(bsls::Types::size_type x,
+                               bsls::Types::size_type y)
     // Round up the specified 'x' to the nearest whole integer multiple of the
-    // specified 'y'.  The behavior is undefined unless '0 <= x' and '0 < y'.
+    // specified 'y'.
 {
     return (x + y - 1) / y * y;
 }
@@ -140,21 +144,23 @@ int roundUp(int x, int y)
     class my_StrPool {
 
         // DATA
-        char           *d_block_p;    // current memory block
+        char                   *d_block_p;    // current memory block
 
-        int             d_blockSize;  // size of current memory block
+        bsls::Types::size_type  d_blockSize;  // size of current memory block
 
-        int             d_cursor;     // offset to next available byte in block
+        bsls::Types::IntPtr     d_cursor;     // offset to next available byte
+                                              // in block
 
         bdlma::InfrequentDeleteBlockList
-                        d_blockList;  // supplies managed memory blocks
+                                d_blockList;  // supplies managed memory blocks
 
       private:
         // PRIVATE MANIPULATORS
-        void *allocateBlock(int numBytes);
+        void *allocateBlock(bsls::Types::size_type numBytes);
             // Request a memory block of at least the specified 'numBytes' size
             // and allocate the initial 'numBytes' from this block.  Return the
-            // address of the allocated memory.
+            // address of the allocated memory.  The behavior is undefined
+            // unless '0 < numBytes'.
 
       private:
         // NOT IMPLEMENTED
@@ -173,11 +179,10 @@ int roundUp(int x, int y)
             // Destroy this object and release all associated memory.
 
         // MANIPULATORS
-        void *allocate(int size);
+        void *allocate(bsls::Types::size_type size);
             // Return the address of a contiguous block of memory of the
             // specified 'size' (in bytes).  If 'size' is 0, no memory is
-            // allocated and 0 is returned.  The behavior is undefined unless
-            // 'size >= 0'.
+            // allocated and 0 is returned.
 
         void release();
             // Release all memory currently allocated through this object.
@@ -205,7 +210,7 @@ int roundUp(int x, int y)
     };
 
     // PRIVATE MANIPULATORS
-    void *my_StrPool::allocateBlock(int numBytes)
+    void *my_StrPool::allocateBlock(bsls::Types::size_type numBytes)
     {
         ASSERT(0 < numBytes);
 
@@ -239,11 +244,12 @@ int roundUp(int x, int y)
     my_StrPool::~my_StrPool()
     {
         ASSERT(k_INITIAL_SIZE <= d_blockSize);
-        ASSERT(d_block_p || (0 <= d_cursor && d_cursor <= d_blockSize));
+        ASSERT(d_block_p || (0 <= d_cursor && d_cursor <=
+                               static_cast<bsls::Types::IntPtr>(d_blockSize)));
     }
 
     // MANIPULATORS
-    void *my_StrPool::allocate(int size)
+    void *my_StrPool::allocate(bsls::Types::size_type size)
     {
         if (0 == size) {
             return 0;                                                 // RETURN
@@ -452,7 +458,7 @@ int main(int argc, char *argv[])
         if (verbose) cout << endl << "DTOR & RELEASE" << endl
                                   << "==============" << endl;
 
-        const int DATA[]   = { 1, 16, 256, 1000 };
+        const int DATA[]   = { 1, 1, 16, 16, 256, 256, 1000, 1000 };
         const int NUM_DATA = sizeof DATA / sizeof *DATA;
 
         bslma::TestAllocator         da("default", veryVeryVeryVerbose);
@@ -495,7 +501,6 @@ int main(int argc, char *argv[])
                 LOOP_ASSERT(ti, ti == oa.numBlocksInUse());
 
                 mX.release();
-
                 LOOP_ASSERT(ti,  0 == oa.numBlocksInUse());
 
                 for (int tj = 0; tj < ti; ++tj) {
@@ -542,7 +547,7 @@ int main(int argc, char *argv[])
         //:
         //: 9 There is no temporary allocation from any allocator.
         //:
-        //:10 QoI: Asserted precondition violations are detected when enabled.
+        //:10 The 'allocator' method returns the used allocator.
         //
         // Plan:
         //: 1 Using a loop-based approach, default-construct three distinct
@@ -605,12 +610,14 @@ int main(int argc, char *argv[])
         //: 5 Perform a separate test to verify that 'mX.allocate(0)' returns 0
         //:   and has no effect on any allocator.  (C-8)
         //:
-        //: 6 Verify that, in appropriate build modes, defensive checks are
-        //:   triggered.  (C-10)
+        //: 6 Verify the 'allocator' method returns the used allocator
+        //:   regardless of how the object was constructed.  (C-10)
         //
         // Testing:
         //   bdlma::InfrequentDeleteBlockList(bslma::Allocator *ba = 0);
-        //   void *allocate(int size);
+        //   void *allocate(bsls::Types::size_type size);
+        //
+        //   bslma::Allocator *allocator() const;
         // --------------------------------------------------------------------
 
         if (verbose) cout << endl << "DEFAULT CTOR & ALLOCATE" << endl
@@ -701,8 +708,8 @@ int main(int argc, char *argv[])
         if (veryVerbose) { T_; P_(HDRSZ); P(U::BSLS_MAX_ALIGNMENT); }
 
         struct {
-            int d_line;  // line number
-            int d_size;  // memory request size
+            int                    d_line;  // line number
+            bsls::Types::size_type d_size;  // memory request size
         } DATA[] = {
             //LINE   SIZE
             //----   ---------------
@@ -728,7 +735,17 @@ int main(int argc, char *argv[])
             { L_,    5 * HDRSZ - 13  },
             { L_,    5 * HDRSZ - 14  },
             { L_,    5 * HDRSZ - 15  },
-            { L_,    5 * HDRSZ - 16  }
+            { L_,    5 * HDRSZ - 16  },
+
+            // For DRQS 78107275, we wish to attempt large allocations.
+            // Unfortunately, this causes intermittant failures in the nightly
+            // builds.  As such, we will "push the envelope" on 64-bit Linux
+            // but perform a more moderate test elsewhere.
+
+#if defined(BSLS_PLATFORM_CPU_64_BIT) && defined(BSLS_PLATFORM_OS_LINUX)
+            { L_,    INT_MAX         },
+#endif
+            { L_,    INT_MAX / 4     }
         };
         const int NUM_DATA = sizeof DATA / sizeof *DATA;
 
@@ -738,10 +755,11 @@ int main(int argc, char *argv[])
         bslma::DefaultAllocatorGuard dag(&da);
 
         for (int ti = 0; ti < NUM_DATA; ++ti) {
-            const int LINE = DATA[ti].d_line;
-            const int SIZE = DATA[ti].d_size;
+            const int                    LINE = DATA[ti].d_line;
+            const bsls::Types::size_type SIZE = DATA[ti].d_size;
 
-            const int EXP_SZ = roundUp(SIZE + HDRSZ, U::BSLS_MAX_ALIGNMENT);
+            const bsls::Types::size_type EXP_SZ =
+                                  roundUp(SIZE + HDRSZ, U::BSLS_MAX_ALIGNMENT);
 
             bslma::TestAllocator oa("object", veryVeryVeryVerbose);
 
@@ -750,7 +768,7 @@ int main(int argc, char *argv[])
 
             const void *EXP_P = (char *)oa.lastAllocatedAddress() + HDRSZ;
 
-            int numBytes = static_cast<int>(oa.lastAllocatedNumBytes());
+            bsls::Types::size_type numBytes = oa.lastAllocatedNumBytes();
 
             int offset = U::calculateAlignmentOffset(p, U::BSLS_MAX_ALIGNMENT);
 
@@ -778,19 +796,21 @@ int main(int argc, char *argv[])
             ASSERT(0 == da.numBlocksTotal());
         }
 
-        if (verbose) cout << "\nNegative Testing." << endl;
+        if (verbose) cout << "\nTesting 'allocator'." << endl;
         {
-            bsls::AssertFailureHandlerGuard hG(
-                                             bsls::AssertTest::failTestDriver);
+            Obj mX;  const Obj& X = mX;
+            ASSERT(&da == X.allocator());
+        }
+        {
+            Obj        mX(reinterpret_cast<bslma::TestAllocator *>(0));
+            const Obj& X = mX;
+            ASSERT(&da == X.allocator());
+        }
+        {
+            bslma::TestAllocator sa("supplied", veryVeryVeryVerbose);
 
-            Obj mX;
-
-            if (veryVerbose) cout << "\t'allocate(size < 0)'" << endl;
-            {
-                ASSERT_SAFE_PASS(mX.allocate( 1));
-                ASSERT_SAFE_PASS(mX.allocate( 0));
-                ASSERT_SAFE_FAIL(mX.allocate(-1));
-            }
+            Obj mX(&sa);  const Obj& X = mX;
+            ASSERT(&sa == X.allocator());
         }
 
       } break;
@@ -863,7 +883,7 @@ int main(int argc, char *argv[])
 }
 
 // ----------------------------------------------------------------------------
-// Copyright 2015 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

@@ -154,6 +154,10 @@ BSLS_IDENT("$Id: $")
 #include <bslalg_swaputil.h>
 #endif
 
+#ifndef INCLUDED_BSLH_HASH
+#include <bslh_hash.h>
+#endif
+
 #ifndef INCLUDED_BSLMA_ALLOCATOR
 #include <bslma_allocator.h>
 #endif
@@ -186,6 +190,10 @@ BSLS_IDENT("$Id: $")
 #include <bsl_cstddef.h>
 #endif
 
+#ifndef INCLUDED_BSL_CSTDINT
+#include <bsl_cstdint.h>
+#endif
+
 #ifndef INCLUDED_BSL_CSTRING
 #include <bsl_cstring.h>
 #endif
@@ -196,10 +204,6 @@ BSLS_IDENT("$Id: $")
 
 #ifndef INCLUDED_BSL_IOSFWD
 #include <bsl_iosfwd.h>
-#endif
-
-#ifndef INCLUDED_BSL_CSTDINT
-#include <bsl_cstdint.h>
 #endif
 
 
@@ -258,7 +262,7 @@ struct PackedIntArrayImp_Signed {
     // and a method to determine the storage size to use for a given value.
 
     // PUBLIC TYPES
-    typedef  bsl::int8_t OneByteStorageType;
+    typedef bsl::int8_t  OneByteStorageType;
     typedef bsl::int16_t TwoByteStorageType;
     typedef bsl::int32_t FourByteStorageType;
     typedef bsl::int64_t EightByteStorageType;
@@ -321,7 +325,7 @@ struct PackedIntArrayImp_Unsigned {
     // and a method to determine the storage size to use for a given value.
 
     // PUBLIC TYPES
-    typedef  bsl::uint8_t OneByteStorageType;
+    typedef bsl::uint8_t  OneByteStorageType;
     typedef bsl::uint16_t TwoByteStorageType;
     typedef bsl::uint32_t FourByteStorageType;
     typedef bsl::uint64_t EightByteStorageType;
@@ -1334,6 +1338,11 @@ void swap(PackedIntArray<TYPE>& a, PackedIntArray<TYPE>& b);
     // method invalidates previously-obtained iterators and references.  The
     // behavior is undefined unless both arrays were created with the same
     // allocator.
+
+// HASH SPECIALIZATIONS
+template <class HASHALG, class TYPE>
+void hashAppend(HASHALG& hashAlg, const PackedIntArray<TYPE>& input);
+    // Pass the specified 'input' to the specified 'hashAlg'
 
 // ============================================================================
 //                            INLINE DEFINITIONS
@@ -2580,6 +2589,19 @@ void bdlc::swap(PackedIntArray<TYPE>& a, PackedIntArray<TYPE>& b)
     BSLS_ASSERT_SAFE(a.allocator() == b.allocator());
 
     a.swap(b);
+}
+
+// HASH SPECIALIZATIONS
+template <class HASHALG, class TYPE>
+inline
+void bdlc::hashAppend(HASHALG& hashAlg, const PackedIntArray<TYPE>& input)
+{
+    using ::BloombergLP::bslh::hashAppend;
+    typedef typename PackedIntArray<TYPE>::const_iterator ci_t;
+    hashAppend(hashAlg, input.length());
+    for (ci_t b = input.begin(), e = input.end(); b != e; ++b) {
+        hashAppend(hashAlg, *b);
+    }
 }
 
 }  // close enterprise namespace

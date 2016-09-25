@@ -12,6 +12,8 @@
 #include <bsls_ident.h>
 BSLS_IDENT_RCSID(balxml_typesprintutil_cpp,"$Id$ $CSID$")
 
+#include <bdldfp_decimalutil.h>
+
 #include <bdlb_print.h>
 
 #include <bdlde_base64encoder.h>
@@ -19,6 +21,7 @@ BSLS_IDENT_RCSID(balxml_typesprintutil_cpp,"$Id$ $CSID$")
 #include <bsl_cfloat.h>
 #include <bsl_cstdio.h>
 #include <bsl_cstring.h>
+#include <bsl_cctype.h>
 #include <bsl_iterator.h>
 
 #include <bsls_assert.h>
@@ -46,16 +49,14 @@ bsl::ostream& encodeBase64(bsl::ostream&  stream,
         bsl::ostreambuf_iterator<char> outputIterator(stream);
 
         int status = base64Encoder.convert(outputIterator, begin, end);
-
-        BSLS_ASSERT(0 == status);  // nothing should be retained by encoder
+        (void)status; BSLS_ASSERT(0 == status);  // nothing should be retained
     }
 
     {
         bsl::ostreambuf_iterator<char> outputIterator(stream);
 
         int status = base64Encoder.endConvert(outputIterator);
-
-        BSLS_ASSERT(0 == status);  // nothing should be retained by encoder
+        (void)status; BSLS_ASSERT(0 == status);  // nothing should be retained
     }
 
     return stream;
@@ -612,7 +613,7 @@ bsl::ostream& printDecimalImpl(bsl::ostream& stream,
 
     // format: "-"  forces left alignment, "#" always prints period
     const int len = ::sprintf(buffer, "%-#1.*f", precision, object);
-    BSLS_ASSERT(len < (int) sizeof buffer);
+    (void)len; BSLS_ASSERT(len < (int) sizeof buffer);
 
 #if defined(BSLS_PLATFORM_CMP_MSVC)
 #pragma warning(pop)
@@ -621,21 +622,21 @@ bsl::ostream& printDecimalImpl(bsl::ostream& stream,
     const char *ptr = bsl::strchr(buffer, '.');
     BSLS_ASSERT(ptr != 0);
 
-    int integralLen = ptr - buffer;
+    int integralLen = static_cast<int>(ptr - buffer);
 
     if (buffer[0] == '-') {
         --integralLen;
     }
 
     // TBD the significance of "3" is not clear
-    int maxFractionLen = precision + 3 - integralLen;
+    int maxFractionLen = static_cast<int>(precision + 3 - integralLen);
     if (maxFractionLen <= 0) {
         maxFractionLen = 1;
     }
 
     ++ptr;  // move ptr to the first fraction digit
 
-    int fractionLen = bsl::strlen(ptr);
+    int fractionLen = static_cast<int>(bsl::strlen(ptr));
 
     if (fractionLen > maxFractionLen) {
         fractionLen = maxFractionLen;
@@ -695,7 +696,7 @@ bsl::ostream& printDecimalWithOptions(bsl::ostream& stream,
 
     // format: "-"  forces left alignment, "#" always prints period
     const int len = ::sprintf(buffer, "%-#1.*f", maxFractionDigits, object);
-    BSLS_ASSERT(len < (int) sizeof buffer);
+    (void)len; BSLS_ASSERT(len < (int) sizeof buffer);
 
 #if defined(BSLS_PLATFORM_CMP_MSVC)
 #pragma warning(pop)
@@ -704,7 +705,7 @@ bsl::ostream& printDecimalWithOptions(bsl::ostream& stream,
     const char *ptr = bsl::strchr(buffer, '.');
     BSLS_ASSERT(ptr != 0);
 
-    int integralLen = ptr - buffer;
+    int integralLen = static_cast<int>(ptr - buffer);
     if (object < 0) {
         --integralLen;
     }
@@ -830,7 +831,7 @@ TypesPrintUtil_Imp::printText(bsl::ostream&               stream,
     // Calls a function in the unnamed namespace.  Cannot be inlined.
     printTextReplacingXMLEscapes(stream,
                                  object.data(),
-                                 object.length(),
+                                 static_cast<int>(object.length()),
                                  encoderOptions);
     return stream;
 }
@@ -844,7 +845,7 @@ TypesPrintUtil_Imp::printText(bsl::ostream&               stream,
     // Calls a function in the unnamed namespace.  Cannot be inlined.
     printTextReplacingXMLEscapes(stream,
                                  object.data(),
-                                 object.length(),
+                                 static_cast<int>(object.length()),
                                  encoderOptions);
     return stream;
 }
@@ -862,7 +863,7 @@ TypesPrintUtil_Imp::printText(bsl::ostream&              stream,
     if (! object.empty()) {
         printTextReplacingXMLEscapes(stream,
                                      &object[0],
-                                     object.size(),
+                                     static_cast<int>(object.size()),
                                      encoderOptions);
     }
     return stream;
@@ -998,8 +999,47 @@ bsl::ostream& TypesPrintUtil_Imp::printDefault(
 
     return stream;
 }
-}  // close package namespace
 
+bsl::ostream& TypesPrintUtil_Imp::printDefault(
+                                             bsl::ostream&              stream,
+                                             const bdldfp::Decimal64&   object,
+                                             const EncoderOptions       *,
+                                             bdlat_TypeCategory::Simple)
+{
+    if (bdldfp::DecimalUtil::isInf(object)) {
+        if (object < bdldfp::Decimal64()) {
+            stream << "-";
+        }
+        stream << "INF";
+    }
+    else if (bdldfp::DecimalUtil::isNan(object)) {
+        stream << "NaN";
+    }
+    else {
+        char buffer[BDLDFP_DECIMALPLATFORM_SNPRINTF_BUFFER_SIZE];
+
+        bdldfp::DenselyPackedDecimalImpUtil::StorageType64 dpdStorage;
+        dpdStorage = bdldfp::DecimalImpUtil::convertToDPD(*object.data());
+
+        bdldfp::DecimalImpUtil_DecNumber::ValueType64 dpdValue;
+        bsl::memcpy(&dpdValue, &dpdStorage, sizeof(dpdValue));
+
+        bdldfp::DecimalImpUtil_DecNumber::format(dpdValue, buffer);
+
+        int (*tolower) (int) = &bsl::tolower;
+
+        // The string output provided by decnumber uses capital "E" by default.
+        bsl::transform(buffer,
+                       buffer + bsl::strlen(buffer),
+                       buffer,
+                       tolower);
+
+        stream << buffer;
+    }
+    return stream;
+}
+
+}  // close package namespace
 }  // close enterprise namespace
 
 // ----------------------------------------------------------------------------

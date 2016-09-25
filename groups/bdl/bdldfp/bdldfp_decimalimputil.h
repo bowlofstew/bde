@@ -250,7 +250,7 @@ class DecimalImpUtil {
                         // Literal Checking Functions
 
     struct This_is_not_a_floating_point_literal {};
-        // This 'struct' is a helper type used togenerate error messages for
+        // This 'struct' is a helper type used to generate error messages for
         // bad literals.
 
     template <class TYPE>
@@ -816,42 +816,33 @@ class DecimalImpUtil {
         // point value and return the result.  The parsing is as specified for
         // the 'strtod32' function in section 9.6 of the ISO/EIC TR 24732 C
         // Decimal Floating-Point Technical Report, except that it is
-        // unspecified whether the NaNs returned are quiet or signaling.  The
-        // behavior is undefined unless 'input' represents a valid 32 bit
-        // decimal floating-point number in scientific or fixed notation, and
-        // no unrelated characters precede (not even whitespace) that textual
-        // representation and a terminating nul character immediately follows
-        // it.  Note that this method does not guarantee the behavior of
-        // ISO/EIC TR 24732 C when parsing NaN because the AIX compiler
-        // intrinsics return a signaling NaN.
+        // unspecified whether the NaNs returned are quiet or signaling.  If
+        // 'input' does not represent a valid 32 bit decimal floating-point
+        // number, then return NaN.  Note that this method does not guarantee
+        // the behavior of ISO/EIC TR 24732 C when parsing NaN because the AIX
+        // compiler intrinsics return a signaling NaN.
 
     static ValueType64 parse64(const char *input);
         // Parse the specified 'input' string as a 64 bit decimal floating-
         // point value and return the result.  The parsing is as specified for
         // the 'strtod64' function in section 9.6 of the ISO/EIC TR 24732 C
         // Decimal Floating-Point Technical Report, except that it is
-        // unspecified whether the NaNs returned are quiet or signaling.  The
-        // behavior is undefined unless 'input' represents a valid 64 bit
-        // decimal floating-point number in scientific or fixed notation, and
-        // no unrelated characters precede (not even whitespace) that textual
-        // representation and a terminating nul character immediately follows
-        // it.  Note that this method does not guarantee the behavior of
-        // ISO/EIC TR 24732 C when parsing NaN because the AIX compiler
-        // intrinsics return a signaling NaN.
+        // unspecified whether the NaNs returned are quiet or signaling.  If
+        // 'input' does not represent a valid 64 bit decimal floating-point
+        // number, then return NaN.  Note that this method does not guarantee
+        // the behavior of ISO/EIC TR 24732 C when parsing NaN because the AIX
+        // compiler intrinsics return a signaling NaN.
 
     static ValueType128 parse128(const char *input);
         // Parse the specified 'input' string as a 128 bit decimal floating-
         // point value and return the result.  The parsing is as specified for
         // the 'strtod128' function in section 9.6 of the ISO/EIC TR 24732 C
         // Decimal Floating-Point Technical Report, except that it is
-        // unspecified whether the NaNs returned are quiet or signaling.  The
-        // behavior is undefined unless 'input' represents a valid 128 bit
-        // decimal floating-point number in scientific or fixed notation, and
-        // no unrelated characters precede (not even whitespace) that textual
-        // representation and a terminating nul character immediately follows
-        // it.  Note that this method does not guarantee the behavior of
-        // ISO/EIC TR 24732 C when parsing NaN because the AIX compiler
-        // intrinsics return a signaling NaN.
+        // unspecified whether the NaNs returned are quiet or signaling.  If
+        // 'input' does not represent a valid 128 bit decimal floating-point
+        // number, then return NaN.  Note that this method does not guarantee
+        // the behavior of ISO/EIC TR 24732 C when parsing NaN because the AIX
+        // compiler intrinsics return a signaling NaN.
 
                         // Formatting functions
 

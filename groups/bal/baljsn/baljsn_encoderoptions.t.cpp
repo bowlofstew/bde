@@ -36,6 +36,10 @@ using namespace bsl;
 //: o 'setEncodingStyle'
 //: o 'setEncodeEmptyArrays'
 //: o 'setEncodeNullElements'
+//: o 'setEncodeInfAndNaNAsStrings'
+//: o 'setDatetimeFractionalSecondPrecision'
+//: o 'setMaxFloatPrecision'
+//: o 'setMaxDoublePrecision'
 //
 // Basic Accessors:
 //: o 'initialIndentLevel'
@@ -43,6 +47,10 @@ using namespace bsl;
 //: o 'encodingStyle'
 //: o 'encodeEmptyArrays'
 //: o 'encodeNullElements'
+//: o 'encodeInfAndNaNAsStrings'
+//: o 'datetimeFractionalSecondPrecision'
+//: o 'maxFloatPrecision'
+//: o 'maxDoublePrecision'
 //
 // Certain standard value-semantic-type test cases are omitted:
 //: o [ 8] -- 'swap' is not implemented for this class.
@@ -72,6 +80,10 @@ using namespace bsl;
 // [ 3] setEncodingStyle(EncodingStyle value);
 // [ 3] setEncodeEmptyArrays(bool value);
 // [ 3] setEncodeNullElements(bool value);
+// [ 3] setEncodeInfAndNaNAsStrings(bool value);
+// [ 3] setDatetimeFractionalSecondPrecision(int value);
+// [ 3] setMaxFloatPrecision(int value);
+// [ 3] setMaxDoublePrecision(int value);
 //
 // ACCESSORS
 // [10] STREAM& bdexStreamOut(STREAM& stream, int version) const;
@@ -80,6 +92,10 @@ using namespace bsl;
 // [ 4] int encodingStyle() const;
 // [ 4] bool encodeEmptyArrays() const;
 // [ 4] bool encodeNullElements() const;
+// [ 4] bool encodeInfAndNaNAsStrings() const;
+// [ 4] int datetimeFractionalSecondPrecision() const;
+// [ 4] maxFloatPrecision() const;
+// [ 4] maxDoublePrecision() const;
 //
 // [ 5] ostream& print(ostream& s, int level = 0, int sPL = 4) const;
 //
@@ -177,36 +193,58 @@ struct DefaultDataRow {
     Style d_encodingStyle;
     bool  d_encodeEmptyArrays;
     bool  d_encodeNullElements;
+    bool  d_encodeInfAndNaNAsStrings;
+    int   d_datetimePrecision;
+    int   d_maxFloatPrecision;
+    int   d_maxDoublePrecision;
 };
 
 static
 const DefaultDataRow DEFAULT_DATA[] =
 {
-    //LINE  INDENT   SPL       STYLE                 EEA    ENE
-    //----  ------   ---       -----                 ---    ---
 
-    // default (must be first)
-    { L_,       0,       0,    Obj::e_COMPACT,  false, false  },
+//LINE  INDENT   SPL       STYLE            EEA    ENE    EINAS DTP FP DP
+//----  ------   ---       -----            ---    ---    ----- --- -- --
 
-    // 'initialIndentLevel'
-    { L_,       1,       0,    Obj::e_PRETTY,   false, false  },
-    { L_, INT_MAX,       0,    Obj::e_COMPACT,  false, false  },
+// default (must be first)
+{ L_,       0,       0,    Obj::e_COMPACT,  false, false, false, 3, 6, 15  },
 
-    // 'spacesPerLevel'
-    { L_,       0,       1,    Obj::e_PRETTY,   false, false  },
-    { L_,       0, INT_MAX,    Obj::e_COMPACT,  false, false  },
+// 'initialIndentLevel'
+{ L_,       1,       0,    Obj::e_PRETTY,   false, false, false, 3, 9, 17  },
+{ L_, INT_MAX,       0,    Obj::e_COMPACT,  false, false, false, 3, 9, 17  },
 
-    // 'encodingStyle'
-    { L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false  },
-    { L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false  },
+// 'spacesPerLevel'
+{ L_,       0,       1,    Obj::e_PRETTY,   false, false, false, 3, 9, 17  },
+{ L_,       0, INT_MAX,    Obj::e_COMPACT,  false, false, false, 3, 9, 17  },
 
-    // 'encodeEmptyArrays'
-    { L_, INT_MAX,       1,    Obj::e_PRETTY,   true,  false  },
-    { L_,       1, INT_MAX,    Obj::e_COMPACT,  true,  false  },
+// 'encodingStyle'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false, false, 3, 9, 17  },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false, false, 3, 9, 17  },
 
-    // 'encodeNullElements'
-    { L_, INT_MAX,       1,    Obj::e_PRETTY,   false, true   },
-    { L_,       1, INT_MAX,    Obj::e_COMPACT,  false, true   },
+// 'encodeEmptyArrays'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   true,  false, false, 3, 9, 17  },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  true,  false, false, 3, 9, 17  },
+
+// 'encodeNullElements'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, true,  false, 3, 9, 17  },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, true,  false, 3, 9, 17  },
+
+// 'encodeInfAndNaNAsStrings'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false, true, 3, 9, 17   },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false, true, 3, 9, 17   },
+
+// 'datetimeFractionalSecondPrecision'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false, true, 4, 9, 17   },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false, true, 6, 9, 17   },
+
+// 'maxFloatPrecision'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false, true, 3, 3, 17   },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false, true, 3, 6, 17   },
+
+// 'maxDoublePrecision'
+{ L_, INT_MAX,       1,    Obj::e_PRETTY,   false, false, true, 3, 9,  9   },
+{ L_,       1, INT_MAX,    Obj::e_COMPACT,  false, false, true, 3, 9, 15   },
+
 };
 const int DEFAULT_NUM_DATA = sizeof DEFAULT_DATA / sizeof *DEFAULT_DATA;
 
@@ -265,10 +303,14 @@ int main(int argc, char *argv[])
 //
 // First, we default-construct a 'baljsn::EncoderOptions' object:
 //..
-    const int  INITIAL_INDENT_LEVEL = 1;
-    const int  SPACES_PER_LEVEL     = 4;
-    const bool ENCODE_EMPTY_ARRAYS  = true;
-    const bool ENCODE_NULL_ELEMENTS = true;
+    const int  INITIAL_INDENT_LEVEL      = 1;
+    const int  SPACES_PER_LEVEL          = 4;
+    const bool ENCODE_EMPTY_ARRAYS       = true;
+    const bool ENCODE_NULL_ELEMENTS      = true;
+    const bool ENCODE_INF_NAN_AS_STRINGS = true;
+    const int  DATETIME_PRECISION        = 6;
+    const int  FLOAT_PRECISION           = 3;
+    const int  DOUBLE_PRECISION          = 9;
 
     baljsn::EncoderOptions options;
     ASSERT(0 == options.initialIndentLevel());
@@ -276,6 +318,12 @@ int main(int argc, char *argv[])
     ASSERT(baljsn::EncoderOptions::e_COMPACT == options.encodingStyle());
     ASSERT(false == options.encodeEmptyArrays());
     ASSERT(false == options.encodeNullElements());
+    ASSERT(false == options.encodeInfAndNaNAsStrings());
+    ASSERT(3     == options.datetimeFractionalSecondPrecision());
+    ASSERT(bsl::numeric_limits<float>::digits10
+                                               == options.maxFloatPrecision());
+    ASSERT(bsl::numeric_limits<double>::digits10
+                                              == options.maxDoublePrecision());
 //..
 // Next, we populate that object to encode in a pretty format using a
 // pre-defined initial indent level and spaces per level:
@@ -294,6 +342,18 @@ int main(int argc, char *argv[])
 
     options.setEncodeNullElements(ENCODE_NULL_ELEMENTS);
     ASSERT(ENCODE_NULL_ELEMENTS == options.encodeNullElements());
+
+    options.setEncodeInfAndNaNAsStrings(ENCODE_INF_NAN_AS_STRINGS);
+    ASSERT(ENCODE_INF_NAN_AS_STRINGS == options.encodeInfAndNaNAsStrings());
+
+    options.setDatetimeFractionalSecondPrecision(DATETIME_PRECISION);
+    ASSERT(DATETIME_PRECISION == options.datetimeFractionalSecondPrecision());
+
+    options.setMaxFloatPrecision(FLOAT_PRECISION);
+    ASSERT(FLOAT_PRECISION == options.maxFloatPrecision());
+
+    options.setMaxDoublePrecision(DOUBLE_PRECISION);
+    ASSERT(DOUBLE_PRECISION == options.maxDoublePrecision());
 //..
       } break;
       case 10: {
@@ -426,6 +486,10 @@ int main(int argc, char *argv[])
             const Style STYLE1   = DATA[ti].d_encodingStyle;
             const bool  EEA1     = DATA[ti].d_encodeEmptyArrays;
             const bool  ENE1     = DATA[ti].d_encodeNullElements;
+            const bool  EINAS1   = DATA[ti].d_encodeInfAndNaNAsStrings;
+            const int   DTP1     = DATA[ti].d_datetimePrecision;
+            const int   MFP1     = DATA[ti].d_maxFloatPrecision;
+            const int   MDP1     = DATA[ti].d_maxDoublePrecision;
 
             Obj mZ;  const Obj& Z = mZ;
             mZ.setInitialIndentLevel(INDENT1);
@@ -433,6 +497,10 @@ int main(int argc, char *argv[])
             mZ.setEncodingStyle(STYLE1);
             mZ.setEncodeEmptyArrays(EEA1);
             mZ.setEncodeNullElements(ENE1);
+            mZ.setEncodeInfAndNaNAsStrings(EINAS1);
+            mZ.setDatetimeFractionalSecondPrecision(DTP1);
+            mZ.setMaxFloatPrecision(MFP1);
+            mZ.setMaxDoublePrecision(MDP1);
 
             Obj mZZ;  const Obj& ZZ = mZZ;
             mZZ.setInitialIndentLevel(INDENT1);
@@ -440,6 +508,10 @@ int main(int argc, char *argv[])
             mZZ.setEncodingStyle(STYLE1);
             mZZ.setEncodeEmptyArrays(EEA1);
             mZZ.setEncodeNullElements(ENE1);
+            mZZ.setEncodeInfAndNaNAsStrings(EINAS1);
+            mZZ.setDatetimeFractionalSecondPrecision(DTP1);
+            mZZ.setMaxFloatPrecision(MFP1);
+            mZZ.setMaxDoublePrecision(MDP1);
 
             if (veryVerbose) { T_ P_(LINE1) P_(Z) P(ZZ) }
 
@@ -459,6 +531,10 @@ int main(int argc, char *argv[])
                 const Style STYLE2   = DATA[tj].d_encodingStyle;
                 const bool  EEA2     = DATA[tj].d_encodeEmptyArrays;
                 const bool  ENE2     = DATA[tj].d_encodeNullElements;
+                const bool  EINAS2   = DATA[tj].d_encodeInfAndNaNAsStrings;
+                const int   DTP2     = DATA[tj].d_datetimePrecision;
+                const int   MFP2     = DATA[tj].d_maxFloatPrecision;
+                const int   MDP2     = DATA[tj].d_maxDoublePrecision;
 
                 Obj mX;  const Obj& X = mX;
                 mX.setInitialIndentLevel(INDENT2);
@@ -466,6 +542,10 @@ int main(int argc, char *argv[])
                 mX.setEncodingStyle(STYLE2);
                 mX.setEncodeEmptyArrays(EEA2);
                 mX.setEncodeNullElements(ENE2);
+                mX.setEncodeInfAndNaNAsStrings(EINAS2);
+                mX.setDatetimeFractionalSecondPrecision(DTP2);
+                mX.setMaxFloatPrecision(MFP2);
+                mX.setMaxDoublePrecision(MDP2);
 
                 if (veryVerbose) { T_ P_(LINE2) P(X) }
 
@@ -481,12 +561,16 @@ int main(int argc, char *argv[])
             if (verbose) cout << "Testing self-assignment" << endl;
 
             {
-                Obj mX;  const Obj& X = mX;
+                Obj mX;
                 mX.setInitialIndentLevel(INDENT1);
                 mX.setSpacesPerLevel(SPL1);
                 mX.setEncodingStyle(STYLE1);
                 mX.setEncodeEmptyArrays(EEA1);
                 mX.setEncodeNullElements(ENE1);
+                mX.setEncodeInfAndNaNAsStrings(EINAS1);
+                mX.setDatetimeFractionalSecondPrecision(DTP1);
+                mX.setMaxFloatPrecision(MFP1);
+                mX.setMaxDoublePrecision(MDP1);
 
                 Obj mZZ;  const Obj& ZZ = mZZ;
                 mZZ.setInitialIndentLevel(INDENT1);
@@ -494,6 +578,10 @@ int main(int argc, char *argv[])
                 mZZ.setEncodingStyle(STYLE1);
                 mZZ.setEncodeEmptyArrays(EEA1);
                 mZZ.setEncodeNullElements(ENE1);
+                mZZ.setEncodeInfAndNaNAsStrings(EINAS1);
+                mZZ.setDatetimeFractionalSecondPrecision(DTP1);
+                mZZ.setMaxFloatPrecision(MFP1);
+                mZZ.setMaxDoublePrecision(MDP1);
 
                 const Obj& Z = mX;
 
@@ -585,6 +673,10 @@ int main(int argc, char *argv[])
             const Style STYLE   = DATA[ti].d_encodingStyle;
             const bool  EEA     = DATA[ti].d_encodeEmptyArrays;
             const bool  ENE     = DATA[ti].d_encodeNullElements;
+            const bool  EINAS   = DATA[ti].d_encodeInfAndNaNAsStrings;
+            const int   DTP     = DATA[ti].d_datetimePrecision;
+            const int   MFP     = DATA[ti].d_maxFloatPrecision;
+            const int   MDP     = DATA[ti].d_maxDoublePrecision;
 
             Obj mZ;  const Obj& Z = mZ;
             mZ.setInitialIndentLevel(INDENT);
@@ -592,6 +684,10 @@ int main(int argc, char *argv[])
             mZ.setEncodingStyle(STYLE);
             mZ.setEncodeEmptyArrays(EEA);
             mZ.setEncodeNullElements(ENE);
+            mZ.setEncodeInfAndNaNAsStrings(EINAS);
+            mZ.setDatetimeFractionalSecondPrecision(DTP);
+            mZ.setMaxFloatPrecision(MFP);
+            mZ.setMaxDoublePrecision(MDP);
 
             Obj mZZ;  const Obj& ZZ = mZZ;
             mZZ.setInitialIndentLevel(INDENT);
@@ -599,6 +695,10 @@ int main(int argc, char *argv[])
             mZZ.setEncodingStyle(STYLE);
             mZZ.setEncodeEmptyArrays(EEA);
             mZZ.setEncodeNullElements(ENE);
+            mZZ.setEncodeInfAndNaNAsStrings(EINAS);
+            mZZ.setDatetimeFractionalSecondPrecision(DTP);
+            mZZ.setMaxFloatPrecision(MFP);
+            mZZ.setMaxDoublePrecision(MDP);
 
             if (veryVerbose) { T_ P_(Z) P(ZZ) }
 
@@ -727,6 +827,10 @@ int main(int argc, char *argv[])
         typedef Style T3;        // 'encodingStyle'
         typedef bool  T4;        // 'encodeEmptyArrays'
         typedef bool  T5;        // 'encodeNullElements'
+        typedef bool  T6;        // 'encodeInfAndNaNAsStrings'
+        typedef int   T7;        // 'datetimeFractionalSecondPrecision'
+        typedef int   T8;        // 'maxFloatPrecision'
+        typedef int   T9;        // 'maxDoublePrecision'
 
                  // ----------------------------------------
                  // Attribute 1 Values: 'initialIndentLevel'
@@ -763,6 +867,34 @@ int main(int argc, char *argv[])
         const T5 A5 = false;           // baseline
         const T5 B5 = true;
 
+        // ----------------------------------------------
+        // Attribute 6 Values: 'encodeInfAndNaNAsStrings'
+        // ----------------------------------------------
+
+        const T6 A6 = false;           // baseline
+        const T6 B6 = true;
+
+        // -------------------------------------------------------
+        // Attribute 7 Values: 'datetimeFractionalSecondPrecision'
+        // -------------------------------------------------------
+
+        const T7 A7 = 3;           // baseline
+        const T7 B7 = 6;
+
+        // ---------------------------------------
+        // Attribute 8 Values: 'maxFloatPrecision'
+        // ---------------------------------------
+
+        const T8 A8 = 9;           // baseline
+        const T8 B8 = 6;
+
+        // ----------------------------------------
+        // Attribute 9 Values: 'maxDoublePrecision'
+        // ----------------------------------------
+
+        const T9 A9 = 15;           // baseline
+        const T9 B9 = 9;
+
         if (verbose) cout <<
             "\nCreate a table of distinct, but similar object values." << endl;
 
@@ -773,6 +905,10 @@ int main(int argc, char *argv[])
             Style d_encodingStyle;
             bool  d_encodeEmptyArrays;
             bool  d_encodeNullElements;
+            bool  d_encodeInfAndNaNAsStrings;
+            int   d_datetimePrecision;
+            int   d_maxFloatPrecision;
+            int   d_maxDoublePrecision;
         } DATA[] = {
 
         // The first row of the table below represents an object value
@@ -780,16 +916,20 @@ int main(int argc, char *argv[])
         // row differs (slightly) from the first in exactly one attribute value
         // (Bi).
 
-        //LINE  INDENT  SPL  STYLE   EEA  ENE
-        //----  ------  ---  -----   ---  ---
+       //LINE INDENT  SPL  STYLE   EEA  ENE  EINAS  DTP MFP  MDP
+       //---- ------  ---  -----   ---  ---  -----  --- ---  ---
 
-        { L_,       A1,   A2,   A3,  A4,   A5  },          // baseline
+        { L_,    A1,   A2,   A3,  A4,   A5,    A6,  A7, A8,  A9 },  // baseline
 
-        { L_,       B1,   A2,   A3,  A4,   A5  },
-        { L_,       A1,   B2,   A3,  A4,   A5  },
-        { L_,       A1,   A2,   B3,  A4,   A5  },
-        { L_,       A1,   A2,   A3,  B4,   A5  },
-        { L_,       A1,   A2,   A3,  A4,   B5  },
+        { L_,    B1,   A2,   A3,  A4,   A5,    A6,  A7, A8,  A9 },
+        { L_,    A1,   B2,   A3,  A4,   A5,    A6,  A7, A8,  A9 },
+        { L_,    A1,   A2,   B3,  A4,   A5,    A6,  A7, A8,  A9 },
+        { L_,    A1,   A2,   A3,  B4,   A5,    A6,  A7, A8,  A9 },
+        { L_,    A1,   A2,   A3,  A4,   B5,    A6,  A7, A8,  A9 },
+        { L_,    A1,   A2,   A3,  A4,   A5,    B6,  A7, A8,  A9 },
+        { L_,    A1,   A2,   A3,  A4,   A5,    A6,  B7, A8,  A9 },
+        { L_,    A1,   A2,   A3,  A4,   A5,    A6,  A7, B8,  A9 },
+        { L_,    A1,   A2,   A3,  A4,   A5,    A6,  A7, A8,  B9 },
 
         };
         const int NUM_DATA = sizeof DATA / sizeof *DATA;
@@ -803,6 +943,10 @@ int main(int argc, char *argv[])
             const Style STYLE1   = DATA[ti].d_encodingStyle;
             const bool  EEA1     = DATA[ti].d_encodeEmptyArrays;
             const bool  ENE1     = DATA[ti].d_encodeNullElements;
+            const bool  EINAS1   = DATA[ti].d_encodeInfAndNaNAsStrings;
+            const int   DTP1     = DATA[ti].d_datetimePrecision;
+            const int   MFP1     = DATA[ti].d_maxFloatPrecision;
+            const int   MDP1     = DATA[ti].d_maxDoublePrecision;
 
             if (veryVerbose) { T_ P_(LINE1) P_(INDENT1)
                                   P_(SPL1)  P_(STYLE1) P_(EEA1) P_(ENE1) }
@@ -816,6 +960,10 @@ int main(int argc, char *argv[])
                 mX.setEncodingStyle(STYLE1);
                 mX.setEncodeEmptyArrays(EEA1);
                 mX.setEncodeNullElements(ENE1);
+                mX.setEncodeInfAndNaNAsStrings(EINAS1);
+                mX.setDatetimeFractionalSecondPrecision(DTP1);
+                mX.setMaxFloatPrecision(MFP1);
+                mX.setMaxDoublePrecision(MDP1);
 
                 LOOP2_ASSERT(LINE1, X,   X == X);
                 LOOP2_ASSERT(LINE1, X, !(X != X));
@@ -828,6 +976,10 @@ int main(int argc, char *argv[])
                 const Style STYLE2   = DATA[tj].d_encodingStyle;
                 const bool  EEA2     = DATA[tj].d_encodeEmptyArrays;
                 const bool  ENE2     = DATA[tj].d_encodeNullElements;
+                const bool  EINAS2   = DATA[tj].d_encodeInfAndNaNAsStrings;
+                const int   DTP2     = DATA[tj].d_datetimePrecision;
+                const int   MFP2     = DATA[tj].d_maxFloatPrecision;
+                const int   MDP2     = DATA[tj].d_maxDoublePrecision;
 
                 if (veryVerbose) { T_ P_(LINE1) P_(INDENT2)
                                       P_(SPL2) P_(STYLE2) P_(EEA2) P_(ENE2) }
@@ -842,12 +994,20 @@ int main(int argc, char *argv[])
                 mX.setEncodingStyle(STYLE1);
                 mX.setEncodeEmptyArrays(EEA1);
                 mX.setEncodeNullElements(ENE1);
+                mX.setEncodeInfAndNaNAsStrings(EINAS1);
+                mX.setDatetimeFractionalSecondPrecision(DTP1);
+                mX.setMaxFloatPrecision(MFP1);
+                mX.setMaxDoublePrecision(MDP1);
 
                 mY.setInitialIndentLevel(INDENT2);
                 mY.setSpacesPerLevel(SPL2);
                 mY.setEncodingStyle(STYLE2);
                 mY.setEncodeEmptyArrays(EEA2);
                 mY.setEncodeNullElements(ENE2);
+                mY.setEncodeInfAndNaNAsStrings(EINAS2);
+                mY.setDatetimeFractionalSecondPrecision(DTP2);
+                mY.setMaxFloatPrecision(MFP2);
+                mY.setMaxDoublePrecision(MDP2);
 
                 if (veryVerbose) { T_ T_ T_ P_(EXP) P_(X) P(Y) }
 
@@ -962,6 +1122,7 @@ int main(int argc, char *argv[])
             Style       d_encodingStyle;
             bool        d_encodeEmptyArrays;
             bool        d_encodeNullElements;
+            bool        d_encodeInfAndNaNAsStrings;
 
             const char *d_expected_p;
         } DATA[] = {
@@ -973,123 +1134,175 @@ int main(int argc, char *argv[])
    // P-2.1.1: { A } x { 0 } x { 0, 1, -1 } --> 3 expected outputs
    // ------------------------------------------------------------------
 
-//LINE  L  SPL  IND  SPL STYLE EEA ENE EXP
-//----  -  ---  ---  --- ----- --- --- ---
+//LINE  L  SPL  IND  SPL S EEA ENE EINAS EXP
+//----  -  ---  ---  --- - --- --- ----- ---
 
- { L_,  0,  0,  89,  10,    C,  T,  T, "["                                   NL
-                                       "initialIndentLevel = 89"             NL
-                                       "spacesPerLevel = 10"                 NL
-                                       "encodingStyle = 0"                   NL
-                                       "encodeEmptyArrays = true"            NL
-                                       "encodeNullElements = true"           NL
+ { L_,  0,  0,  89,  10, C, T,  T,  T, "["                                   NL
+
+                                 "initialIndentLevel = 89"                   NL
+                                 "spacesPerLevel = 10"                       NL
+                                 "encodingStyle = 0"                         NL
+                                 "encodeEmptyArrays = true"                  NL
+                                 "encodeNullElements = true"                 NL
+                                 "encodeInfAndNaNAsStrings = true"           NL
+                                 "datetimeFractionalSecondPrecision = 3"     NL
+                                 "maxFloatPrecision = 6"                     NL
+                                 "maxDoublePrecision = 15"                   NL
+                                        "]"                                  NL
+                                                                             },
+
+ { L_,  0,  1,  89,  10, P, T,  T,  T, "["                                   NL
+
+                                 " initialIndentLevel = 89"                  NL
+                                 " spacesPerLevel = 10"                      NL
+                                 " encodingStyle = 1"                        NL
+                                 " encodeEmptyArrays = true"                 NL
+                                 " encodeNullElements = true"                NL
+                                 " encodeInfAndNaNAsStrings = true"          NL
+                                 " datetimeFractionalSecondPrecision = 3"    NL
+                                 " maxFloatPrecision = 6"                    NL
+                                 " maxDoublePrecision = 15"                  NL
                                        "]"                                   NL
                                                                              },
 
- { L_,  0,  1,  89,  10,    P,  T,  T, "["                                   NL
-                                       " initialIndentLevel = 89"            NL
-                                       " spacesPerLevel = 10"                NL
-                                       " encodingStyle = 1"                  NL
-                                       " encodeEmptyArrays = true"           NL
-                                       " encodeNullElements = true"          NL
-                                       "]"                                   NL
-                                                                             },
+ { L_,  0, -1,  89,  10, C, T,  F,  T, "["                                   SP
 
- { L_,  0, -1,  89,  10,    C,  T,  F, "["                                   SP
-                                       "initialIndentLevel = 89"             SP
-                                       "spacesPerLevel = 10"                 SP
-                                       "encodingStyle = 0"                   SP
-                                       "encodeEmptyArrays = true"            SP
-                                       "encodeNullElements = false"          SP
+                                 "initialIndentLevel = 89"                   SP
+                                 "spacesPerLevel = 10"                       SP
+                                 "encodingStyle = 0"                         SP
+                                 "encodeEmptyArrays = true"                  SP
+                                 "encodeNullElements = false"                SP
+                                 "encodeInfAndNaNAsStrings = true"           SP
+                                 "datetimeFractionalSecondPrecision = 3"     SP
+                                 "maxFloatPrecision = 6"                     SP
+                                 "maxDoublePrecision = 15"                   SP
                                        "]"
                                                                              },
 
    // ------------------------------------------------------------------
-   // P-2.1.2: { A } x { 3, -3 } x { 0, 2, -2 } --> 6 expected outputs
+   // P-2.1.2: { A } x { 3, -3 } x { 0, 2, -2 }  -->  6 expected outputs
    // ------------------------------------------------------------------
 
-//LINE  L  SPL  IND  SPL STYLE EEA ENE EXP
-//----  -  ---  ---  --- ----- --- --- ---
+//LINE  L  SPL  IND  SPL STYLE EEA ENE EINAS EXP
+//----  -  ---  ---  --- ----- --- --- ----- ---
 
- { L_,  3,  0,  89,  10,    C,  T,  T, "["                                   NL
-                                       "initialIndentLevel = 89"             NL
-                                       "spacesPerLevel = 10"                 NL
-                                       "encodingStyle = 0"                   NL
-                                       "encodeEmptyArrays = true"            NL
-                                       "encodeNullElements = true"           NL
+ { L_,  3,  0,  89,  10, C, T,  T,  T, "["                                   NL
+
+                                 "initialIndentLevel = 89"                   NL
+                                 "spacesPerLevel = 10"                       NL
+                                 "encodingStyle = 0"                         NL
+                                 "encodeEmptyArrays = true"                  NL
+                                 "encodeNullElements = true"                 NL
+                                 "encodeInfAndNaNAsStrings = true"           NL
+                                 "datetimeFractionalSecondPrecision = 3"     NL
+                                 "maxFloatPrecision = 6"                     NL
+                                 "maxDoublePrecision = 15"                   NL
                                        "]"                                   NL
                                                                              },
 
- { L_,  3,  2,  89,  10,    P,  F,  F, "      ["                             NL
-                                       "        initialIndentLevel = 89"     NL
-                                       "        spacesPerLevel = 10"         NL
-                                       "        encodingStyle = 1"           NL
-                                       "        encodeEmptyArrays = false"   NL
-                                       "        encodeNullElements = false"  NL
-                                       "      ]"                             NL
+ { L_,  3,  2,  89,  10, P, F,  F,  T,
+                               "      ["                                     NL
+                         "        initialIndentLevel = 89"                   NL
+                         "        spacesPerLevel = 10"                       NL
+                         "        encodingStyle = 1"                         NL
+                         "        encodeEmptyArrays = false"                 NL
+                         "        encodeNullElements = false"                NL
+                         "        encodeInfAndNaNAsStrings = true"           NL
+                         "        datetimeFractionalSecondPrecision = 3"     NL
+                         "        maxFloatPrecision = 6"                     NL
+                         "        maxDoublePrecision = 15"                   NL
+                               "      ]"                                     NL
                                                                              },
 
- { L_,  3, -2,  89,  10,    C,  T,  F, "      ["                             SP
-                                       "initialIndentLevel = 89"             SP
-                                       "spacesPerLevel = 10"                 SP
-                                       "encodingStyle = 0"                   SP
-                                       "encodeEmptyArrays = true"            SP
-                                       "encodeNullElements = false"          SP
+ { L_,  3, -2,  89,  10, C, T,  F,  T, "      ["                             SP
+
+                                 "initialIndentLevel = 89"                   SP
+                                 "spacesPerLevel = 10"                       SP
+                                 "encodingStyle = 0"                         SP
+                                 "encodeEmptyArrays = true"                  SP
+                                 "encodeNullElements = false"                SP
+                                 "encodeInfAndNaNAsStrings = true"           SP
+                                 "datetimeFractionalSecondPrecision = 3"     SP
+                                 "maxFloatPrecision = 6"                     SP
+                                 "maxDoublePrecision = 15"                   SP
                                        "]"
                                                                              },
 
- { L_, -3,  0,  89,  10,    P,  F,  T, "["                                   NL
-                                       "initialIndentLevel = 89"             NL
-                                       "spacesPerLevel = 10"                 NL
-                                       "encodingStyle = 1"                   NL
-                                       "encodeEmptyArrays = false"           NL
-                                       "encodeNullElements = true"           NL
+ { L_, -3,  0,  89,  10, P, F,  T,  T, "["                                   NL
+
+                                 "initialIndentLevel = 89"                   NL
+                                 "spacesPerLevel = 10"                       NL
+                                 "encodingStyle = 1"                         NL
+                                 "encodeEmptyArrays = false"                 NL
+                                 "encodeNullElements = true"                 NL
+                                 "encodeInfAndNaNAsStrings = true"           NL
+                                 "datetimeFractionalSecondPrecision = 3"     NL
+                                 "maxFloatPrecision = 6"                     NL
+                                 "maxDoublePrecision = 15"                   NL
                                        "]"                                   NL
                                                                              },
 
- { L_, -3,  2,  89,  10,    P,  T,  F, "["                                   NL
-                                       "        initialIndentLevel = 89"     NL
-                                       "        spacesPerLevel = 10"         NL
-                                       "        encodingStyle = 1"           NL
-                                       "        encodeEmptyArrays = true"    NL
-                                       "        encodeNullElements = false"  NL
-                                       "      ]"                             NL
+ { L_, -3,  2,  89,  10, P, T,  F,  T, "["                                   NL
+
+                         "        initialIndentLevel = 89"                   NL
+                         "        spacesPerLevel = 10"                       NL
+                         "        encodingStyle = 1"                         NL
+                         "        encodeEmptyArrays = true"                  NL
+                         "        encodeNullElements = false"                NL
+                         "        encodeInfAndNaNAsStrings = true"           NL
+                         "        datetimeFractionalSecondPrecision = 3"     NL
+                         "        maxFloatPrecision = 6"                     NL
+                         "        maxDoublePrecision = 15"                   NL
+                               "      ]"                                     NL
                                                                              },
 
- { L_, -3, -2,  89,  10,    C,  T,  T, "["                                   SP
-                                       "initialIndentLevel = 89"             SP
-                                       "spacesPerLevel = 10"                 SP
-                                       "encodingStyle = 0"                   SP
-                                       "encodeEmptyArrays = true"            SP
-                                       "encodeNullElements = true"           SP
+ { L_, -3, -2,  89,  10, C, T,  T,  T, "["                                   SP
+
+                                 "initialIndentLevel = 89"                   SP
+                                 "spacesPerLevel = 10"                       SP
+                                 "encodingStyle = 0"                         SP
+                                 "encodeEmptyArrays = true"                  SP
+                                 "encodeNullElements = true"                 SP
+                                 "encodeInfAndNaNAsStrings = true"           SP
+                                 "datetimeFractionalSecondPrecision = 3"     SP
+                                 "maxFloatPrecision = 6"                     SP
+                                 "maxDoublePrecision = 15"                   SP
                                        "]"
                                                                              },
 
-           // ----------------------------------------------------
-           // P-2.1.3: { B } x { 2 } x { 3 } --> 1 expected output
-           // ----------------------------------------------------
+   // -----------------------------------------------------------------
+   // P-2.1.3: { B } x { 2 }     x { 3 }         -->  1 expected output
+   // -----------------------------------------------------------------
 
-//LINE  L  SPL  IND  SPL STYLE EEA ENE EXP
-//----  -  ---  ---  --- ----- --- --- ---
+//LINE  L  SPL  IND  SPL STYLE EEA ENE EINAS EXP
+//----  -  ---  ---  --- ----- --- --- ----- ---
 
- { L_,  2,  3,  89,  10,    P,  T,  T, "      ["                             NL
-                                       "         initialIndentLevel = 89"    NL
-                                       "         spacesPerLevel = 10"        NL
-                                       "         encodingStyle = 1"          NL
-                                       "         encodeEmptyArrays = true"   NL
-                                       "         encodeNullElements = true"  NL
-                                       "      ]"                             NL
+ { L_,  2,  3,  89,  10, P, T,  T,  T,
+                         "      ["                                           NL
+                         "         initialIndentLevel = 89"                  NL
+                         "         spacesPerLevel = 10"                      NL
+                         "         encodingStyle = 1"                        NL
+                         "         encodeEmptyArrays = true"                 NL
+                         "         encodeNullElements = true"                NL
+                         "         encodeInfAndNaNAsStrings = true"          NL
+                         "         datetimeFractionalSecondPrecision = 3"    NL
+                         "         maxFloatPrecision = 6"                    NL
+                         "         maxDoublePrecision = 15"                  NL
+                               "      ]"                                     NL
                                                                              },
 
         // -----------------------------------------------------------------
-        // P-2.1.4: { A B } x { -9 } x { -9 } --> 2 expected outputs
+        // P-2.1.4: { A B } x { -9 }   x { -9 }      -->  2 expected outputs
         // -----------------------------------------------------------------
 
-//LINE  L  SPL  IND  SPL STYLE EEA  ENE EXP
-//----  -  ---  ---  --- ----- ---  --- ---
+//LINE  L  SPL  IND  SPL STYLE EEA  ENE EINAS EXP
+//----  -  ---  ---  --- ----- ---  --- ----- ---
 
- { L_, -9, -9,  89,  10,    C,  F,  T, "[ 89 10 0 false true ]"              },
+ { L_, -9, -9,  89,  10,    C,  F,   T,  T,
+                                        "[ 89 10 0 false true true 3 6 15 ]" },
 
- { L_, -9, -9,   7,   5,    P,  F,  F, "[ 7 5 1 false false ]"               },
+ { L_, -9, -9,   7,   5,    P,  F,   F,  T,
+                                        "[ 7 5 1 false false true 3 6 15 ]"  },
 
 #undef NL
 #undef SP
@@ -1110,6 +1323,7 @@ int main(int argc, char *argv[])
                 const Style       STYLE  = DATA[ti].d_encodingStyle;
                 const bool        EEA    = DATA[ti].d_encodeEmptyArrays;
                 const bool        ENE    = DATA[ti].d_encodeNullElements;
+                const bool        EINAS  = DATA[ti].d_encodeInfAndNaNAsStrings;
 
                 const char *const EXP    = DATA[ti].d_expected_p;
 
@@ -1124,6 +1338,7 @@ int main(int argc, char *argv[])
                 mX.setEncodingStyle(STYLE);
                 mX.setEncodeEmptyArrays(EEA);
                 mX.setEncodeNullElements(ENE);
+                mX.setEncodeInfAndNaNAsStrings(EINAS);
 
                 ostringstream os;
 
@@ -1187,6 +1402,10 @@ int main(int argc, char *argv[])
         //   Style encodingStyle() const;
         //   bool  encodeEmptyArrays() const;
         //   bool  encodeNullElements() const;
+        //   bool  encodeInfAndNaNAsStrings() const;
+        //   int   datetimeFractionalSecondPrecision() const;
+        //   int   maxFloatPrecision() const;
+        //   int   maxDoublePrecision() const;
         // --------------------------------------------------------------------
 
         if (verbose) cout << endl
@@ -1200,6 +1419,10 @@ int main(int argc, char *argv[])
         typedef Style T3;        // 'encodingStyle'
         typedef bool  T4;        // 'encodeEmptyArrays'
         typedef bool  T5;        // 'encodeNullElements'
+        typedef bool  T6;        // 'encodeInfAndNaNAsStrings'
+        typedef int   T7;        // 'datetimeFractionalSecondPrecision'
+        typedef int   T8;        // 'maxFloatPrecision'
+        typedef int   T9;        // 'maxDoublePrecision'
 
         if (verbose) cout << "\nEstablish suitable attribute values." << endl;
 
@@ -1212,6 +1435,10 @@ int main(int argc, char *argv[])
         const Style D3   = Obj::e_COMPACT;  // 'encodingStyle'
         const bool  D4   = false;                // 'encodeEmptyArrays'
         const bool  D5   = false;                // 'encodeNullElements'
+        const bool  D6   = false;                // 'encodeInfAndNaNAsStrings'
+        const int   D7   = 3;                    // 'datetimePrecision'
+        const int   D8   = 6;                    // 'maxFloatPrecision'
+        const int   D9   = 15;                   // 'maxDoublePrecision'
 
                        // ----------------------------
                        // 'A' values: Boundary values.
@@ -1222,6 +1449,10 @@ int main(int argc, char *argv[])
         const Style A3   = Obj::e_PRETTY;   // 'encodingStyle'
         const bool  A4   = true;                 // 'encodeEmptyArrays'
         const bool  A5   = true;                 // 'encodeNullElements'
+        const bool  A6   = true;                 // 'encodeInfAndNaNAsStrings'
+        const int   A7   = 6;                    // 'datetimePrecision'
+        const int   A8   = 6;                    // 'maxFloatPrecision'
+        const int   A9   = 15;                   // 'maxDoublePrecision'
 
         if (verbose) cout << "\nCreate an object." << endl;
 
@@ -1244,6 +1475,19 @@ int main(int argc, char *argv[])
 
             const T5& encodeNullElements = X.encodeNullElements();
             LOOP2_ASSERT(D5, encodeNullElements, D5 == encodeNullElements);
+
+            const T6& encodeInfAndNaNAsStrings = X.encodeInfAndNaNAsStrings();
+            LOOP2_ASSERT(D6, encodeInfAndNaNAsStrings,
+                         D6 == encodeInfAndNaNAsStrings);
+
+            const T7& dtPrecision = X.datetimeFractionalSecondPrecision();
+            LOOP2_ASSERT(D7, dtPrecision, D7 == dtPrecision);
+
+            const T8& maxFloatPrecision = X.maxFloatPrecision();
+            LOOP2_ASSERT(D8, maxFloatPrecision, D8 == maxFloatPrecision);
+
+            const T9& maxDoublePrecision = X.maxDoublePrecision();
+            LOOP2_ASSERT(D9, maxDoublePrecision, D9 == maxDoublePrecision);
         }
 
         if (verbose) cout <<
@@ -1286,7 +1530,40 @@ int main(int argc, char *argv[])
             mX.setEncodeNullElements(A5);
 
             const T5& encodeNullElements = X.encodeNullElements();
-            LOOP2_ASSERT(A4, encodeNullElements, A4 == encodeNullElements);
+            LOOP2_ASSERT(A5, encodeNullElements, A5 == encodeNullElements);
+        }
+
+        if (veryVerbose) { T_ Q(encodeInfAndNaNAsStrings) }
+        {
+            mX.setEncodeInfAndNaNAsStrings(A6);
+
+            const T6& encodeInfAndNaNAsStrings = X.encodeInfAndNaNAsStrings();
+            LOOP2_ASSERT(A6, encodeInfAndNaNAsStrings,
+                         A6 == encodeInfAndNaNAsStrings);
+        }
+
+        if (veryVerbose) { T_ Q(datetimeFractionalSecondPrecision) }
+        {
+            mX.setDatetimeFractionalSecondPrecision(A7);
+
+            const T7& dtPrecision = X.datetimeFractionalSecondPrecision();
+            LOOP2_ASSERT(A7, dtPrecision, A7 == dtPrecision);
+        }
+
+        if (veryVerbose) { T_ Q(maxFloatPrecision) }
+        {
+            mX.setMaxFloatPrecision(A8);
+
+            const T8& maxFloatPrecision = X.maxFloatPrecision();
+            LOOP2_ASSERT(A8, maxFloatPrecision, A8 == maxFloatPrecision);
+        }
+
+        if (veryVerbose) { T_ Q(maxDoublePrecision) }
+        {
+            mX.setMaxDoublePrecision(A9);
+
+            const T9& maxDoublePrecision = X.maxDoublePrecision();
+            LOOP2_ASSERT(A9, maxDoublePrecision, A9 == maxDoublePrecision);
         }
       } break;
       case 3: {
@@ -1336,6 +1613,10 @@ int main(int argc, char *argv[])
         //   setEncodingStyle(Style value);
         //   setEncodeEmptyArrays(bool value);
         //   setEncodeNullElements(bool value);
+        //   setEncodeInfAndNaNAsStrings(bool value);
+        //   setDatetimeFractionalSecondPrecision(int value);
+        //   setMaxFloatPrecision(int value);
+        //   setMaxDoublePrecision(int value);
         // --------------------------------------------------------------------
 
         if (verbose) cout << endl
@@ -1351,7 +1632,10 @@ int main(int argc, char *argv[])
         const Style D3   = Obj::e_COMPACT;  // 'encodingStyle'
         const bool  D4   = false;                // 'encodeEmptyArrays'
         const bool  D5   = false;                // 'encodeNullElements'
-
+        const bool  D6   = false;                // 'encodeInfAndNaNAsStrings'
+        const int   D7   = 3;            // 'datetimeFractionalSecondPrecision'
+        const int   D8   = 6;                    // 'maxFloatPrecision'
+        const int   D9   = 15;                   // 'maxDoublePrecision'
         // 'A' values.
 
         const int   A1   = 1;                    // 'initialIndentLevel'
@@ -1359,6 +1643,10 @@ int main(int argc, char *argv[])
         const Style A3   = Obj::e_PRETTY;   // 'encodingStyle'
         const bool  A4   = true;                 // 'encodeEmptyArrays'
         const bool  A5   = true;                 // 'encodeNullElements'
+        const bool  A6   = true;                 // 'encodeInfAndNaNAsStrings'
+        const int   A7   = 0;            // 'datetimeFractionalSecondPrecision'
+        const int   A8   = 6;                    // 'maxFloatPrecision'
+        const int   A9   = 15;                   // 'maxDoublePrecision'
 
         // 'B' values.
 
@@ -1367,6 +1655,10 @@ int main(int argc, char *argv[])
         const Style B3   = Obj::e_COMPACT;   // 'encodingStyle'
         const bool  B4   = false;                 // 'encodeEmptyArrays'
         const bool  B5   = false;                 // 'encodeNullElements'
+        const bool  B6   = false;                 // 'encodeInfAndNaNAsStrings'
+        const int   B7   = 6;            // 'datetimeFractionalSecondPrecision'
+        const int   B8   = 3;                    // 'maxFloatPrecision'
+        const int   B9   = 9;                    // 'maxDoublePrecision'
 
         Obj mX;  const Obj& X = mX;
 
@@ -1383,6 +1675,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setInitialIndentLevel(B1);
             ASSERT(B1 == X.initialIndentLevel());
@@ -1390,6 +1686,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setInitialIndentLevel(D1);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1397,6 +1697,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
         }
 
         // ----------------
@@ -1409,6 +1713,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setSpacesPerLevel(B2);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1416,6 +1724,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setSpacesPerLevel(D2);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1423,6 +1735,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
         }
 
         // ---------------
@@ -1435,6 +1751,10 @@ int main(int argc, char *argv[])
             ASSERT(A3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodingStyle(B3);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1442,6 +1762,10 @@ int main(int argc, char *argv[])
             ASSERT(B3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodingStyle(D3);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1449,6 +1773,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
         }
 
         // -------------------
@@ -1461,6 +1789,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(A4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodeEmptyArrays(B4);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1468,6 +1800,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(B4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodeEmptyArrays(D4);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1475,6 +1811,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
         }
 
         // --------------------
@@ -1487,6 +1827,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodeNullElements(B5);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1494,6 +1838,10 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(B5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
 
             mX.setEncodeNullElements(D5);
             ASSERT(D1 == X.initialIndentLevel());
@@ -1501,6 +1849,162 @@ int main(int argc, char *argv[])
             ASSERT(D3 == X.encodingStyle());
             ASSERT(D4 == X.encodeEmptyArrays());
             ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+        }
+
+        // --------------------------
+        // 'encodeInfAndNaNAsStrings'
+        // --------------------------
+        {
+            mX.setEncodeInfAndNaNAsStrings(A6);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setEncodeInfAndNaNAsStrings(B6);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(B6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setEncodeInfAndNaNAsStrings(D6);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+        }
+
+        // -----------------------------------
+        // 'datetimeFractionalSecondPrecision'
+        // -----------------------------------
+        {
+            mX.setDatetimeFractionalSecondPrecision(A7);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setDatetimeFractionalSecondPrecision(B7);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(B7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setDatetimeFractionalSecondPrecision(D7);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+        }
+
+        // -------------------
+        // 'maxFloatPrecision'
+        // -------------------
+        {
+            mX.setMaxFloatPrecision(A8);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setMaxFloatPrecision(B8);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(B8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+
+            mX.setMaxFloatPrecision(D8);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
+        }
+
+        // -------------------
+        // 'maxDoublePrecision'
+        // -------------------
+        {
+            mX.setMaxDoublePrecision(A9);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
+
+            mX.setMaxDoublePrecision(B9);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(B9 == X.maxDoublePrecision());
+
+            mX.setMaxDoublePrecision(D9);
+            ASSERT(D1 == X.initialIndentLevel());
+            ASSERT(D2 == X.spacesPerLevel());
+            ASSERT(D3 == X.encodingStyle());
+            ASSERT(D4 == X.encodeEmptyArrays());
+            ASSERT(D5 == X.encodeNullElements());
+            ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(D8 == X.maxFloatPrecision());
+            ASSERT(D9 == X.maxDoublePrecision());
         }
 
         if (verbose) cout << "Corroborate attribute independence." << endl;
@@ -1514,12 +2018,20 @@ int main(int argc, char *argv[])
             mX.setEncodingStyle(A3);
             mX.setEncodeEmptyArrays(A4);
             mX.setEncodeNullElements(A5);
+            mX.setEncodeInfAndNaNAsStrings(A6);
+            mX.setDatetimeFractionalSecondPrecision(A7);
+            mX.setMaxFloatPrecision(A8);
+            mX.setMaxDoublePrecision(A9);
 
             ASSERT(A1 == X.initialIndentLevel());
             ASSERT(A2 == X.spacesPerLevel());
             ASSERT(A3 == X.encodingStyle());
             ASSERT(A4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
 
                  // ---------------------------------------
                  // Set all attributes to their 'B' values.
@@ -1532,6 +2044,10 @@ int main(int argc, char *argv[])
             ASSERT(A3 == X.encodingStyle());
             ASSERT(A4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
 
             mX.setSpacesPerLevel(B2);
 
@@ -1540,6 +2056,10 @@ int main(int argc, char *argv[])
             ASSERT(A3 == X.encodingStyle());
             ASSERT(A4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
 
             mX.setEncodingStyle(B3);
 
@@ -1548,6 +2068,10 @@ int main(int argc, char *argv[])
             ASSERT(B3 == X.encodingStyle());
             ASSERT(A4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
 
             mX.setEncodeEmptyArrays(B4);
 
@@ -1556,6 +2080,10 @@ int main(int argc, char *argv[])
             ASSERT(B3 == X.encodingStyle());
             ASSERT(B4 == X.encodeEmptyArrays());
             ASSERT(A5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
 
             mX.setEncodeNullElements(B5);
 
@@ -1564,6 +2092,54 @@ int main(int argc, char *argv[])
             ASSERT(B3 == X.encodingStyle());
             ASSERT(B4 == X.encodeEmptyArrays());
             ASSERT(B5 == X.encodeNullElements());
+            ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
+
+            mX.setEncodeInfAndNaNAsStrings(B6);
+            ASSERT(B1 == X.initialIndentLevel());
+            ASSERT(B2 == X.spacesPerLevel());
+            ASSERT(B3 == X.encodingStyle());
+            ASSERT(B4 == X.encodeEmptyArrays());
+            ASSERT(B5 == X.encodeNullElements());
+            ASSERT(B6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
+
+            mX.setDatetimeFractionalSecondPrecision(B7);
+            ASSERT(B1 == X.initialIndentLevel());
+            ASSERT(B2 == X.spacesPerLevel());
+            ASSERT(B3 == X.encodingStyle());
+            ASSERT(B4 == X.encodeEmptyArrays());
+            ASSERT(B5 == X.encodeNullElements());
+            ASSERT(B6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(B7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(A8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
+
+            mX.setMaxFloatPrecision(B8);
+            ASSERT(B1 == X.initialIndentLevel());
+            ASSERT(B2 == X.spacesPerLevel());
+            ASSERT(B3 == X.encodingStyle());
+            ASSERT(B4 == X.encodeEmptyArrays());
+            ASSERT(B5 == X.encodeNullElements());
+            ASSERT(B6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(B7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(B8 == X.maxFloatPrecision());
+            ASSERT(A9 == X.maxDoublePrecision());
+
+            mX.setMaxDoublePrecision(B9);
+            ASSERT(B1 == X.initialIndentLevel());
+            ASSERT(B2 == X.spacesPerLevel());
+            ASSERT(B3 == X.encodingStyle());
+            ASSERT(B4 == X.encodeEmptyArrays());
+            ASSERT(B5 == X.encodeNullElements());
+            ASSERT(B6 == X.encodeInfAndNaNAsStrings());
+            ASSERT(B7 == X.datetimeFractionalSecondPrecision());
+            ASSERT(B8 == X.maxFloatPrecision());
+            ASSERT(B9 == X.maxDoublePrecision());
         }
 
         if (verbose) cout << "\nNegative Testing." << endl;
@@ -1583,6 +2159,22 @@ int main(int argc, char *argv[])
             {
                 ASSERT_SAFE_FAIL(obj.setSpacesPerLevel(-1));
                 ASSERT_SAFE_PASS(obj.setSpacesPerLevel( 0));
+            }
+
+            if (veryVerbose) cout << "\tmaxFloatPrecision" << endl;
+            {
+                ASSERT_SAFE_FAIL(obj.setMaxFloatPrecision(0));
+                ASSERT_SAFE_PASS(obj.setMaxFloatPrecision(1));
+                ASSERT_SAFE_PASS(obj.setMaxFloatPrecision(9));
+                ASSERT_SAFE_FAIL(obj.setMaxFloatPrecision(10));
+            }
+
+            if (veryVerbose) cout << "\tmaxDoublePrecision" << endl;
+            {
+                ASSERT_SAFE_FAIL(obj.setMaxDoublePrecision(0));
+                ASSERT_SAFE_PASS(obj.setMaxDoublePrecision(1));
+                ASSERT_SAFE_PASS(obj.setMaxDoublePrecision(17));
+                ASSERT_SAFE_FAIL(obj.setMaxDoublePrecision(18));
             }
         }
       } break;
@@ -1618,6 +2210,10 @@ int main(int argc, char *argv[])
         const Style D3   = Obj::e_COMPACT;  // 'encodingStyle'
         const bool  D4   = false;                // 'encodeEmptyArrays'
         const bool  D5   = false;                // 'encodeNullElements'
+        const bool  D6   = false;                // 'encodeInfAndNaNAsStrings'
+        const int   D7   = 3;            // 'datetimeFractionalSecondPrecision'
+        const int   D8   = 6;                    // 'maxFloatPrecision'
+        const int   D9   = 15;                   // 'maxDoublePrecision'
 
         if (verbose) cout <<
                      "Create an object using the default constructor." << endl;
@@ -1635,7 +2231,12 @@ int main(int argc, char *argv[])
         LOOP2_ASSERT(D3, X.encodingStyle(),      D3 == X.encodingStyle());
         LOOP2_ASSERT(D4, X.encodeEmptyArrays(),  D4 == X.encodeEmptyArrays());
         LOOP2_ASSERT(D5, X.encodeNullElements(), D5 == X.encodeNullElements());
-
+        LOOP2_ASSERT(D6, X.encodeInfAndNaNAsStrings(),
+                     D5 == X.encodeInfAndNaNAsStrings());
+        LOOP2_ASSERT(D7, X.datetimeFractionalSecondPrecision(),
+                     D7 == X.datetimeFractionalSecondPrecision());
+        LOOP2_ASSERT(D8, X.maxFloatPrecision(), D8 == X.maxFloatPrecision());
+        LOOP2_ASSERT(D9, X.maxDoublePrecision(), D9 == X.maxDoublePrecision());
       } break;
       case 1: {
         // --------------------------------------------------------------------
@@ -1672,6 +2273,10 @@ int main(int argc, char *argv[])
         typedef Style T3;        // 'encodingStyle'
         typedef bool  T4;        // 'encodeEmptyArrays'
         typedef bool  T5;        // 'encodeNullElements'
+        typedef bool  T6;        // 'encodeInfAndNaNAsStrings'
+        typedef int   T7;        // 'datetimeFractionalSecondPrecision'
+        typedef int   T8;        // 'maxFloatPrecision'
+        typedef int   T9;        // 'maxDoublePrecision'
 
         // Attribute 1 Values: 'initialIndentLevel'
 
@@ -1698,6 +2303,26 @@ int main(int argc, char *argv[])
         const T5 D5 = false;    // default value
         const T5 A5 = true;
 
+        // Attribute 6 Values: 'encodeInfAndNaNAsStrings'
+
+        const T6 D6 = false;    // default value
+        const T6 A6 = true;
+
+        // Attribute 7 Values: 'datetimeFractionalSecondPrecision'
+
+        const T7 D7 = 3;    // default value
+        const T7 A7 = 6;
+
+        // Attribute 8 Values: 'maxFloatPrecision'
+
+        const T8 D8 = 6;           // default value
+        const T8 A8 = 6;
+
+        // Attribute 9 Values: 'maxDoublePrecision'
+
+        const T9 D9 = 15;          // default value
+        const T9 A9 = 9;
+
         // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         if (verbose) cout << "\n 1. Create an object 'w' (default ctor)."
@@ -1713,6 +2338,10 @@ int main(int argc, char *argv[])
         ASSERT(D3 == W.encodingStyle());
         ASSERT(D4 == W.encodeEmptyArrays());
         ASSERT(D5 == W.encodeNullElements());
+        ASSERT(D6 == W.encodeInfAndNaNAsStrings());
+        ASSERT(D7 == W.datetimeFractionalSecondPrecision());
+        ASSERT(D8 == W.maxFloatPrecision());
+        ASSERT(D9 == W.maxDoublePrecision());
 
         if (veryVerbose) cout <<
                   "\tb. Try equality operators: 'w' <op> 'w'." << endl;
@@ -1734,6 +2363,10 @@ int main(int argc, char *argv[])
         ASSERT(D3 == X.encodingStyle());
         ASSERT(D4 == X.encodeEmptyArrays());
         ASSERT(D5 == X.encodeNullElements());
+        ASSERT(D6 == X.encodeInfAndNaNAsStrings());
+        ASSERT(D7 == X.datetimeFractionalSecondPrecision());
+        ASSERT(D8 == X.maxFloatPrecision());
+        ASSERT(D9 == X.maxDoublePrecision());
 
         if (veryVerbose) cout <<
                    "\tb. Try equality operators: 'x' <op> 'w', 'x'." << endl;
@@ -1751,6 +2384,10 @@ int main(int argc, char *argv[])
         mX.setEncodingStyle(A3);
         mX.setEncodeEmptyArrays(A4);
         mX.setEncodeNullElements(A5);
+        mX.setEncodeInfAndNaNAsStrings(A6);
+        mX.setDatetimeFractionalSecondPrecision(A7);
+        mX.setMaxFloatPrecision(A8);
+        mX.setMaxDoublePrecision(A9);
 
         if (veryVerbose) cout << "\ta. Check new value of 'x'." << endl;
         if (veryVeryVerbose) { T_ T_ P(X) }
@@ -1760,6 +2397,10 @@ int main(int argc, char *argv[])
         ASSERT(A3 == X.encodingStyle());
         ASSERT(A4 == X.encodeEmptyArrays());
         ASSERT(A5 == X.encodeNullElements());
+        ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+        ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+        ASSERT(A8 == X.maxFloatPrecision());
+        ASSERT(A9 == X.maxDoublePrecision());
 
         if (veryVerbose) cout <<
              "\tb. Try equality operators: 'x' <op> 'w', 'x'." << endl;
@@ -1778,6 +2419,10 @@ int main(int argc, char *argv[])
         mY.setEncodingStyle(A3);
         mY.setEncodeEmptyArrays(A4);
         mY.setEncodeNullElements(A5);
+        mY.setEncodeInfAndNaNAsStrings(A6);
+        mY.setDatetimeFractionalSecondPrecision(A7);
+        mY.setMaxFloatPrecision(A8);
+        mY.setMaxDoublePrecision(A9);
 
         if (veryVerbose) cout << "\ta. Check initial value of 'y'." << endl;
         if (veryVeryVerbose) { T_ T_ P(Y) }
@@ -1787,6 +2432,10 @@ int main(int argc, char *argv[])
         ASSERT(A3 == Y.encodingStyle());
         ASSERT(A4 == Y.encodeEmptyArrays());
         ASSERT(A5 == Y.encodeNullElements());
+        ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+        ASSERT(A7 == Y.datetimeFractionalSecondPrecision());
+        ASSERT(A8 == Y.maxFloatPrecision());
+        ASSERT(A9 == Y.maxDoublePrecision());
 
         if (veryVerbose) cout <<
              "\tb. Try equality operators: 'y' <op> 'w', 'x', 'y'" << endl;
@@ -1810,6 +2459,10 @@ int main(int argc, char *argv[])
         ASSERT(A3 == Z.encodingStyle());
         ASSERT(A4 == Z.encodeEmptyArrays());
         ASSERT(A5 == Z.encodeNullElements());
+        ASSERT(A6 == Z.encodeInfAndNaNAsStrings());
+        ASSERT(A7 == Z.datetimeFractionalSecondPrecision());
+        ASSERT(A8 == Z.maxFloatPrecision());
+        ASSERT(A9 == Z.maxDoublePrecision());
 
         if (veryVerbose) cout <<
            "\tb. Try equality operators: 'z' <op> 'w', 'x', 'y', 'z'." << endl;
@@ -1829,6 +2482,10 @@ int main(int argc, char *argv[])
         mZ.setEncodingStyle(D3);
         mZ.setEncodeEmptyArrays(D4);
         mZ.setEncodeNullElements(D5);
+        mZ.setEncodeInfAndNaNAsStrings(D6);
+        mZ.setDatetimeFractionalSecondPrecision(D7);
+        mZ.setMaxFloatPrecision(D8);
+        mZ.setMaxDoublePrecision(D9);
 
         if (veryVerbose) cout << "\ta. Check new value of 'z'." << endl;
         if (veryVeryVerbose) { T_ T_ P(Z) }
@@ -1838,6 +2495,10 @@ int main(int argc, char *argv[])
         ASSERT(D3 == Z.encodingStyle());
         ASSERT(D4 == Z.encodeEmptyArrays());
         ASSERT(D5 == Z.encodeNullElements());
+        ASSERT(D6 == Z.encodeInfAndNaNAsStrings());
+        ASSERT(D7 == Z.datetimeFractionalSecondPrecision());
+        ASSERT(D8 == Z.maxFloatPrecision());
+        ASSERT(D9 == Z.maxDoublePrecision());
 
         if (veryVerbose) cout <<
            "\tb. Try equality operators: 'z' <op> 'w', 'x', 'y', 'z'." << endl;
@@ -1861,6 +2522,10 @@ int main(int argc, char *argv[])
         ASSERT(A3 == W.encodingStyle());
         ASSERT(A4 == W.encodeEmptyArrays());
         ASSERT(A5 == W.encodeNullElements());
+        ASSERT(A6 == W.encodeInfAndNaNAsStrings());
+        ASSERT(A7 == W.datetimeFractionalSecondPrecision());
+        ASSERT(A8 == W.maxFloatPrecision());
+        ASSERT(A9 == W.maxDoublePrecision());
 
         if (veryVerbose) cout <<
            "\tb. Try equality operators: 'w' <op> 'w', 'x', 'y', 'z'." << endl;
@@ -1884,6 +2549,10 @@ int main(int argc, char *argv[])
         ASSERT(D3 == W.encodingStyle());
         ASSERT(D4 == W.encodeEmptyArrays());
         ASSERT(D5 == W.encodeNullElements());
+        ASSERT(D6 == W.encodeInfAndNaNAsStrings());
+        ASSERT(D7 == W.datetimeFractionalSecondPrecision());
+        ASSERT(D8 == W.maxFloatPrecision());
+        ASSERT(D9 == W.maxDoublePrecision());
 
         if (veryVerbose) cout <<
            "\tb. Try equality operators: 'x' <op> 'w', 'x', 'y', 'z'." << endl;
@@ -1907,6 +2576,10 @@ int main(int argc, char *argv[])
         ASSERT(A3 == X.encodingStyle());
         ASSERT(A4 == X.encodeEmptyArrays());
         ASSERT(A5 == X.encodeNullElements());
+        ASSERT(A6 == X.encodeInfAndNaNAsStrings());
+        ASSERT(A7 == X.datetimeFractionalSecondPrecision());
+        ASSERT(A8 == X.maxFloatPrecision());
+        ASSERT(A9 == X.maxDoublePrecision());
 
         if (veryVerbose) cout <<
            "\tb. Try equality operators: 'x' <op> 'w', 'x', 'y', 'z'." << endl;

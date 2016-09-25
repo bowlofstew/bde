@@ -92,6 +92,11 @@
 //                                     // with '$'
 //..
 
+
+// For the initial BDE 3.0 test build phase, undefine these macros.
+#undef BDE_OMIT_INTERNAL_DEPRECATED
+#undef BDE_DONT_ALLOW_TRANSITIVE_INCLUDES
+
 /* ident string intentionally omitted for this header (do not add to binaries)
  * Its use is expected to be so extensive that the cost outweighs benefit
  * of including an ident string for every file that includes this header
@@ -108,17 +113,6 @@ BSLS_IDENT_RCSID(sysutil_ident_h,"$Id: $")
 #define BSLS_IDENT_OFF
 #endif // ifndef BSLS_IDENT_OFF
 #endif // ifndef BSLS_IDENT_ON
-
-
-#ifdef BSLS_IDENT_OFF
-
-
-#define BSLS_IDENT(str)
-#define BSLS_IDENT_RCSID(tag,str)
-
-
-#else /* !BSLS_IDENT_OFF */
-
 
 /* BSLS_IDENT() - insert string into .comment binary segment (if supported)*/
 
@@ -239,6 +233,13 @@ BSLS_IDENT_RCSID(sysutil_ident_h,"$Id: $")
   #undef _BSLS_IDENT_BUILDID_IMP2
 #endif
 
+
+#ifdef BSLS_IDENT_OFF
+
+#undef BSLS_IDENT
+#undef BSLS_IDENT_RCSID
+#define BSLS_IDENT(str)
+#define BSLS_IDENT_RCSID(tag,str)
 
 #endif /* !BSLS_IDENT_OFF */
 

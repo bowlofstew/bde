@@ -499,6 +499,10 @@ BSLS_IDENT("$Id: $")
 #include <bslalg_typetraitusesbslmaallocator.h>
 #endif
 
+#ifndef INCLUDED_BSLH_HASH
+#include <bslh_hash.h>
+#endif
+
 #ifndef INCLUDED_BSLMA_ALLOCATOR
 #include <bslma_allocator.h>
 #endif
@@ -559,6 +563,8 @@ class Calendar {
     // FRIENDS
     friend bool operator==(const Calendar&, const Calendar&);
     friend bool operator!=(const Calendar&, const Calendar&);
+    template <class HASHALG>
+    friend void hashAppend(HASHALG& hashAlg, const Calendar&);
 
   private:
     // PRIVATE MANIPULATORS
@@ -1232,6 +1238,8 @@ class Calendar {
         // 'level').  If 'stream' is not valid on entry, this operation has no
         // effect.
 
+
+
 };
 
 // FREE OPERATORS
@@ -1255,6 +1263,12 @@ bsl::ostream& operator<<(bsl::ostream& stream, const Calendar& calendar);
     // 'stream', and return a reference to the modifiable 'stream'.
 
 // FREE FUNCTIONS
+template <class HASHALG>
+void hashAppend(HASHALG& hashAlg, const Calendar& object);
+    // Pass the specified 'object' to the specified 'hashAlg'.  This function
+    // integrates with the 'bslh' modular hashing system and effectively
+    // provides a 'bsl::hash' specialization for 'Calendar'.
+
 void swap(Calendar& a, Calendar& b);
     // Efficiently exchange the values of the specified 'a' and 'b' objects.
     // This function provides the no-throw exception-safety guarantee.  The
@@ -1689,7 +1703,8 @@ int Calendar::getNextBusinessDay(Date *nextBusinessDay, const Date& date) const
 
     enum { e_SUCCESS = 0, e_FAILURE = 1 };
 
-    int offset = d_nonBusinessDays.find0AtMinIndex(date + 1 - firstDate());
+    int offset = static_cast<int>(
+                    d_nonBusinessDays.find0AtMinIndex(date + 1 - firstDate()));
     if (0 <= offset) {
         *nextBusinessDay = firstDate() + offset;
         return e_SUCCESS;                                             // RETURN
@@ -1758,13 +1773,13 @@ const Date& Calendar::lastDate() const
 inline
 int Calendar::length() const
 {
-    return d_nonBusinessDays.length();
+    return static_cast<int>(d_nonBusinessDays.length());
 }
 
 inline
 int Calendar::numBusinessDays() const
 {
-    return d_nonBusinessDays.num0();
+    return static_cast<int>(d_nonBusinessDays.num0());
 }
 
 inline
@@ -1774,8 +1789,8 @@ int Calendar::numBusinessDays(const Date& beginDate, const Date& endDate) const
     BSLS_ASSERT_SAFE(isInRange(endDate));
     BSLS_ASSERT_SAFE(beginDate <= endDate);
 
-    return d_nonBusinessDays.num0(beginDate - firstDate(),
-                                  endDate - firstDate() + 1);
+    return static_cast<int>(d_nonBusinessDays.num0(beginDate - firstDate(),
+                                                   endDate - firstDate() + 1));
 }
 
 inline
@@ -1799,7 +1814,7 @@ int Calendar::numHolidays() const
 inline
 int Calendar::numNonBusinessDays() const
 {
-    return d_nonBusinessDays.num1();
+    return static_cast<int>(d_nonBusinessDays.num1());
 }
 
 inline
@@ -1974,6 +1989,14 @@ bsl::ostream& bdlt::operator<<(bsl::ostream& stream, const Calendar& calendar)
 }
 
 // FREE FUNCTIONS
+template <class HASHALG>
+inline
+void bdlt::hashAppend(HASHALG& hashAlg, const Calendar& object)
+{
+    using ::BloombergLP::bslh::hashAppend;
+    hashAppend(hashAlg, object.d_packedCalendar);
+}
+
 inline
 void bdlt::swap(Calendar& a, Calendar& b)
 {
@@ -2017,8 +2040,8 @@ Calendar_BusinessDayConstIter& Calendar_BusinessDayConstIter::operator++()
 {
     BSLS_ASSERT_SAFE(d_currentOffset >= 0);
 
-    d_currentOffset =
-                     d_nonBusinessDays_p->find0AtMinIndex(d_currentOffset + 1);
+    d_currentOffset = static_cast<int>(
+                    d_nonBusinessDays_p->find0AtMinIndex(d_currentOffset + 1));
     return *this;
 }
 
@@ -2026,12 +2049,12 @@ inline
 Calendar_BusinessDayConstIter& Calendar_BusinessDayConstIter::operator--()
 {
     if (-1 == d_currentOffset) {
-        d_currentOffset = d_nonBusinessDays_p->
-                             find0AtMaxIndex(0, d_nonBusinessDays_p->length());
+        d_currentOffset = static_cast<int>(d_nonBusinessDays_p->
+                            find0AtMaxIndex(0, d_nonBusinessDays_p->length()));
     }
     else {
-        d_currentOffset = d_nonBusinessDays_p->
-                                           find0AtMaxIndex(0, d_currentOffset);
+        d_currentOffset = static_cast<int>(d_nonBusinessDays_p->
+                                          find0AtMaxIndex(0, d_currentOffset));
     }
 
     BSLS_ASSERT_SAFE(0 <= d_currentOffset);
@@ -2108,7 +2131,7 @@ struct UsesBslmaAllocator<bdlt::Calendar> : bsl::true_type {};
 #endif
 
 // ----------------------------------------------------------------------------
-// Copyright 2015 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

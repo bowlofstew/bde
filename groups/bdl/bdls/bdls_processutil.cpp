@@ -13,15 +13,17 @@
 BSLS_IDENT_RCSID(bdls_processutil_cpp,"$Id$ $CSID$")
 
 #include <bdlsb_memoutstreambuf.h>
-#include <bdls_fdstreambuf.h>
 
 #include <bsls_assert.h>
 #include <bsls_platform.h>
 
 #include <bsl_iostream.h>
+#include <bsl_fstream.h>
 
 #ifdef BSLS_PLATFORM_OS_WINDOWS
 #include <windows.h>
+#include <bdlde_charconvertutf16.h>
+#include <bdlma_localsequentialallocator.h>
 #else
 #include <unistd.h>
 #endif
@@ -39,6 +41,7 @@ BSLS_IDENT_RCSID(bdls_processutil_cpp,"$Id$ $CSID$")
 #elif defined(BSLS_PLATFORM_OS_DARWIN)
 #include <libproc.h>
 #endif
+
 
 namespace BloombergLP {
 
@@ -63,15 +66,24 @@ int ProcessUtil::getProcessName(bsl::string *result)
     result->clear();
 
 #if defined BSLS_PLATFORM_OS_WINDOWS
-    int  rc = 0;
-
-    result->resize(MAX_PATH);
-    DWORD length = GetModuleFileName(0, &(*result->begin()), result->size());
-    if (length > 0) {
-        result->resize(length);
+    bdlma::LocalSequentialAllocator<MAX_PATH + 1> la;
+    bsl::wstring wResult(MAX_PATH, 0, &la);
+    while (wResult.length() <= 4 * MAX_PATH) {
+        DWORD length = GetModuleFileNameW(0, &wResult[0], wResult.length());
+        if (length <= 0) {  // Error
+            return 1;                                                 // RETURN
+        }
+        else if (length < wResult.length()) {  // Success
+            wResult.resize(length);
+            return bdlde::CharConvertUtf16::utf16ToUtf8(result, wResult);
+                                                                      // RETURN
+        }
+        else {  // Not enough space for the process name in 'wResult'
+            wResult.resize(wResult.length() * 2); // Make more space
+        }
     }
 
-    return length <= 0;
+    return -1;
 #else
 # if defined BSLS_PLATFORM_OS_HPUX
     result->resize(256);
@@ -95,14 +107,15 @@ int ProcessUtil::getProcessName(bsl::string *result)
     os << "/proc/" << getpid() << "/cmdline" << bsl::ends;
     const char *procfs = osb.data();
 
-    int fd = open(procfs, O_RDONLY);
-    if (fd == -1) {
+
+    bsl::ifstream ifs;
+    ifs.open(procfs, bsl::ios_base::in | bsl::ios_base::binary);
+
+    if (ifs.fail()) {
         return -1;                                                    // RETURN
     }
 
-    FdStreamBuf isb(fd, true, true, true);
-    bsl::istream      is(&isb);
-    is >> *result;
+    ifs >> *result;
 
     bsl::string::size_type pos = result->find_first_of('\0');
     if (bsl::string::npos != pos) {

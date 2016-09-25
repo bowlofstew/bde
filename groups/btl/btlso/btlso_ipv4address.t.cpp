@@ -10,6 +10,7 @@
 
 #include <btlso_ipv4address.h>
 
+#include <bdlsb_fixedmemoutstreambuf.h>
 #include <bslx_instreamfunctions.h>
 #include <bslx_outstreamfunctions.h>
 #include <bslx_testinstream.h>
@@ -29,8 +30,6 @@
 #else
 #include <netinet/in.h>
 #endif
-
-#include <bsl_strstream.h>
 
 using namespace BloombergLP;
 using namespace bsl;
@@ -388,7 +387,61 @@ int main(int argc, char *argv[])
                 { L_,  "325.3.5.7"        ,  false  },
                 { L_,  "5.7.0x10000"      ,  false  },
                 { L_,  "5.0x1000000"      ,  false  },
-                { L_,  "akjfa;kdfjask"    ,  false  }
+                { L_,  "akjfa;kdfjask"    ,  false  },
+
+                // Per DRQS 76925158: Additional test values.
+                //  Empty fields                       // Binary analog
+                { L_,  ""                 ,  false },  // 0
+                { L_,  "1"                ,  true  },  // 1
+               
+                { L_,  "."                ,  false },  // 00
+                { L_,  ".1"               ,  false },  // 01
+                { L_,  "1."               ,  false },  // 10
+                { L_,  "1.1"              ,  true  },  // 11
+                
+                { L_,  ".."               ,  false },  // 000
+                { L_,  "..1"              ,  false },  // 001
+                { L_,  ".1."              ,  false },  // 010
+                { L_,  ".1.1"             ,  false },  // 011
+                { L_,  "1.."              ,  false },  // 100
+                { L_,  "1..1"             ,  false },  // 101
+                { L_,  "1.1."             ,  false },  // 110
+                { L_,  "1.1.1"            ,  true  },  // 111
+                
+                { L_,  "..."              ,  false },  // 0000
+                { L_,  "...1"             ,  false },  // 0001
+                { L_,  "..1."             ,  false },  // 0010
+                { L_,  "..1.1"            ,  false },  // 0011
+                { L_,  ".1.."             ,  false },  // 0100
+                { L_,  ".1..1"            ,  false },  // 0101
+                { L_,  ".1.1."            ,  false },  // 0110
+                { L_,  ".1.1.1"           ,  false },  // 0111
+                { L_,  "1..."             ,  false },  // 1000
+                { L_,  "1...1"            ,  false },  // 1001
+                { L_,  "1..1."            ,  false },  // 1010
+                { L_,  "1..1.1"           ,  false },  // 1011
+                { L_,  "1.1.."            ,  false },  // 1100
+                { L_,  "1.1..1"           ,  false },  // 1101
+                { L_,  "1.1.1."           ,  false },  // 1110
+                { L_,  "1.1.1.1"          ,  true  },  // 1111
+                
+                //  Leading/trailing dots
+                { L_,  "1"                ,  true  },  // none
+                { L_,  "1.2"              ,  true  },  // none
+                { L_,  "1.2.3"            ,  true  },  // none
+                { L_,  "1.2.3.4"          ,  true  },  // none
+                { L_,  ".1"               ,  false },  // leading
+                { L_,  ".1.2"             ,  false },  // leading
+                { L_,  ".1.2.3"           ,  false },  // leading
+                { L_,  ".1.2.3.4"         ,  false },  // leading
+                { L_,  "1."               ,  false },  // trailing
+                { L_,  "1.2."             ,  false },  // trailing
+                { L_,  "1.2.3."           ,  false },  // trailing
+                { L_,  "1.2.3.4."         ,  false },  // trailing
+                { L_,  ".1."              ,  false },  // both
+                { L_,  ".1.2."            ,  false },  // both
+                { L_,  ".1.2.3."          ,  false },  // both
+                { L_,  ".1.2.3.4."        ,  false }   // both
             };
 
             const int NUM_VALUES = sizeof VALUES / sizeof *VALUES;
@@ -445,7 +498,8 @@ int main(int argc, char *argv[])
 
                 // format a.b.c.d
 
-                { L_,  htonl(0x00000000UL), "0.0.0.0"          ,     0 },
+                { L_,  static_cast<int>(htonl(0x00000000UL)),
+                                            "0.0.0.0"          ,     0 },
                 { L_,  static_cast<int>(htonl(0x7fbfdfefUL)),
                                             "127.191.0xdF.0357",    58 },
                 { L_,  static_cast<int>(htonl(0x7fbfdfefUL)),
@@ -458,29 +512,41 @@ int main(int argc, char *argv[])
                                             "0xdf.0357.127.191",  8142 },
                 { L_,  static_cast<int>(htonl(0xdfef7fbfUL)),
                                             "0337.0xEf.127.191",  8142 },
-                { L_,  htonl(0xbfdfef7fUL), "0277.223.239.0x7f", 10364 },
-                { L_,  htonl(0xbfdfef7fUL), "0xBf.223.239.0177", 10364 },
+                { L_,  static_cast<int>(htonl(0xbfdfef7fUL)),
+                                            "0277.223.239.0x7f", 10364 },
+                { L_,  static_cast<int>(htonl(0xbfdfef7fUL)),
+                                            "0xBf.223.239.0177", 10364 },
                 { L_,  static_cast<int>(htonl(0xffffffffUL)),
                                             "255.255.255.255"  , 30000 },
-                { L_,  htonl(0xc7aca914UL), "199.172.169.20"   , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.172.169.20"   , 65535 },
 
                 // format a.b.c
 
-                { L_,  htonl(0xc7aca914UL), "199.172.43284"    , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7.0xaC.0124424", 65535 },
-                { L_,  htonl(0xc7aca914UL), "0307.0254.0xa914" , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.172.43284"    , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0xc7.0xaC.0124424", 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0307.0254.0xa914" , 65535 },
 
                 // format a.b
 
-                { L_,  htonl(0xc7aca914UL), "199.11315476"     , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7.053124424"   , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0307.0xAca914"    , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.11315476"     , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0xc7.053124424"   , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0307.0xAca914"    , 65535 },
 
                 // format a
 
-                { L_,  htonl(0xc7aca914UL), "3349981460"       , 65535 },
-                { L_,  htonl(0xc7aca914UL), "030753124424"     , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7acA914"       , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "3349981460"       , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "030753124424"     , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0xc7acA914"       , 65535 },
             };
 
             const int NUM_VALUES = sizeof VALUES / sizeof *VALUES;
@@ -1145,7 +1211,7 @@ int main(int argc, char *argv[])
         //   object in a single-line format.
         //
         // Plan:
-        //   For each of a set of object values, use 'ostrstream' to write
+        //   For each of a set of object values, use 'ostream' to write
         //   that object's value to a character buffer and then compare
         //   the contents of that buffer with the expected output format.
         //
@@ -1195,7 +1261,9 @@ int main(int argc, char *argv[])
 
                 if (veryVerbose) cout << "\tEXPECTED FORMAT: "
                                       << FMT << endl;
-                ostrstream out(buf, SIZE);  out << X << ends;
+                bdlsb::FixedMemOutStreamBuf obuf(buf, SIZE);
+                bsl::ostream out(&obuf);
+                out << X << ends;
                 if (veryVerbose) cout << "\tACTUAL FORMAT:   "
                                       << buf << endl;
 
@@ -1210,11 +1278,12 @@ int main(int argc, char *argv[])
                 // Check to make sure setw applies to the whole object.
 
                 char buf2[SIZE];
-                ostrstream out_setw(buf2, SIZE);
+                bdlsb::FixedMemOutStreamBuf obuf2(buf2, SIZE);
+                bsl::ostream out_setw(&obuf2);
                 out_setw << setw(100) << X << ends;
 
-                string str(out.str());
-                string setw_str(out_setw.str());
+                string str(buf);
+                string setw_str(buf2);
 
                 str = string(100 - str.length(), ' ') + str;
 
@@ -1278,7 +1347,8 @@ int main(int argc, char *argv[])
               //line        ip                 ips/ipsp       port
               //---- -------------------  ------------------ -----
 
-                { L_,  htonl(0x00000000UL), "0.0.0.0"        ,     0 ,
+                { L_,  static_cast<int>(htonl(0x00000000UL)),
+                                            "0.0.0.0",             0 ,
                                             "0.0.0.0:0"               },
                 { L_,  static_cast<int>(htonl(0x7fbfdfefUL)),
                                             "127.191.223.239",    58 ,
@@ -1289,12 +1359,14 @@ int main(int argc, char *argv[])
                 { L_,  static_cast<int>(htonl(0xdfef7fbfUL)),
                                             "223.239.127.191",  8142 ,
                                             "223.239.127.191:8142"    },
-                { L_,  htonl(0xbfdfef7fUL), "191.223.239.127", 10364 ,
+                { L_,  static_cast<int>(htonl(0xbfdfef7fUL)),
+                                            "191.223.239.127", 10364 ,
                                             "191.223.239.127:10364"   },
                 { L_,  static_cast<int>(htonl(0xffffffffUL)),
                                             "255.255.255.255", 30000 ,
                                             "255.255.255.255:30000"   },
-                { L_,  htonl(0xc7aca914UL), "199.172.169.20" , 65535 ,
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.172.169.20" , 65535 ,
                                             "199.172.169.20:65535"    }
             };
 
@@ -1400,7 +1472,8 @@ int main(int argc, char *argv[])
 
                 // format a.b.c.d
 
-                { L_,  htonl(0x00000000UL), "0.0.0.0"          ,     0 },
+                { L_,  static_cast<int>(htonl(0x00000000UL)),
+                                            "0.0.0.0"          ,     0 },
                 { L_,  static_cast<int>(htonl(0x7fbfdfefUL)),
                                             "127.191.0xdF.0357",    58 },
                 { L_,  static_cast<int>(htonl(0x7fbfdfefUL)),
@@ -1413,27 +1486,39 @@ int main(int argc, char *argv[])
                                             "0xdf.0357.127.191",  8142 },
                 { L_,  static_cast<int>(htonl(0xdfef7fbfUL)),
                                             "0337.0xEf.127.191",  8142 },
-                { L_,  htonl(0xbfdfef7fUL), "0277.223.239.0x7f", 10364 },
-                { L_,  htonl(0xbfdfef7fUL), "0xBf.223.239.0177", 10364 },
-                { L_,  htonl(0xc7aca914UL), "199.172.169.20"   , 65535 },
+                { L_,  static_cast<int>(htonl(0xbfdfef7fUL)),
+                                            "0277.223.239.0x7f", 10364 },
+                { L_,  static_cast<int>(htonl(0xbfdfef7fUL)),
+                                            "0xBf.223.239.0177", 10364 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.172.169.20"   , 65535 },
 
                 // format a.b.c
 
-                { L_,  htonl(0xc7aca914UL), "199.172.43284"    , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7.0xaC.0124424", 65535 },
-                { L_,  htonl(0xc7aca914UL), "0307.0254.0xa914" , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "199.172.43284"    , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0xc7.0xaC.0124424", 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                            "0307.0254.0xa914" , 65535 },
 
                 // format a.b
 
-                { L_,  htonl(0xc7aca914UL), "199.11315476"     , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7.053124424"   , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0307.0xAca914"    , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "199.11315476"     , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "0xc7.053124424"   , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "0307.0xAca914"    , 65535 },
 
                 // format a
 
-                { L_,  htonl(0xc7aca914UL), "3349981460"       , 65535 },
-                { L_,  htonl(0xc7aca914UL), "030753124424"     , 65535 },
-                { L_,  htonl(0xc7aca914UL), "0xc7acA914"       , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "3349981460"       , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "030753124424"     , 65535 },
+                { L_,  static_cast<int>(htonl(0xc7aca914UL)),
+                                             "0xc7acA914"       , 65535 },
             };
 
             const int NUM_VALUES = sizeof VALUES / sizeof *VALUES;

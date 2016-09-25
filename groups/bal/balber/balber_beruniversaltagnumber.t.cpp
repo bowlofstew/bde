@@ -11,6 +11,8 @@
 
 #include <bdlat_arrayfunctions.h>
 
+#include <bdlsb_fixedmemoutstreambuf.h>
+
 #include <bslim_testutil.h>
 
 #include <bslma_allocator.h>
@@ -18,9 +20,7 @@
 #include <bsls_types.h>
 
 #include <bsl_iostream.h>
-#include <bsl_sstream.h>
 #include <bsl_string.h>
-#include <bsl_strstream.h>
 
 #include <bsl_cstdlib.h>     // atoi()
 #include <bsl_cstring.h>     // strlen()
@@ -329,15 +329,6 @@ bsl::ostream& test::operator<<(bsl::ostream& stream,
 
 #endif
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_customizedstring.cpp  -*-C++-*-
 
 #include <bsl_string.h>
@@ -371,15 +362,6 @@ const char CustomizedString::CLASS_NAME[] = "CustomizedString";
 }  // close namespace test
 }  // close enterprise namespace
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_mychoice.h   -*-C++-*-
 #ifndef INCLUDED_TEST_MYCHOICE
 #define INCLUDED_TEST_MYCHOICE
@@ -388,8 +370,6 @@ const char CustomizedString::CLASS_NAME[] = "CustomizedString";
 //  todo: provide purpose
 //
 //@CLASSES: MyChoice
-//
-//@AUTHOR: Author Unknown
 //
 //@DESCRIPTION:
 //  todo: provide annotation
@@ -913,15 +893,6 @@ bsl::ostream& test::operator<<(bsl::ostream& stream, const test::MyChoice& rhs)
 
 #endif
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_mychoice.cpp  -*-C++-*-
 
 #include <bsl_iostream.h>
@@ -1087,15 +1058,6 @@ bsl::ostream& MyChoice::print(
 }  // close namespace test
 }  // close enterprise namespace
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_myenumeration.h   -*-C++-*-
 #ifndef INCLUDED_TEST_MYENUMERATION
 #define INCLUDED_TEST_MYENUMERATION
@@ -1104,8 +1066,6 @@ bsl::ostream& MyChoice::print(
 //  todo: provide purpose
 //
 //@CLASSES: MyEnumeration
-//
-//@AUTHOR: Author Unknown
 //
 //@DESCRIPTION:
 //  todo: provide annotation
@@ -1253,15 +1213,6 @@ bsl::ostream& test::operator<<(bsl::ostream& stream,
 
 #endif
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_myenumeration.cpp  -*-C++-*-
 
 #include <bsl_iostream.h>
@@ -1349,15 +1300,6 @@ int MyEnumeration::fromString(MyEnumeration::Value *result,
 }  // close namespace test
 }  // close enterprise namespace
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_mysequence.h   -*-C++-*-
 #ifndef INCLUDED_TEST_MYSEQUENCE
 #define INCLUDED_TEST_MYSEQUENCE
@@ -1366,8 +1308,6 @@ int MyEnumeration::fromString(MyEnumeration::Value *result,
 //  todo: provide purpose
 //
 //@CLASSES: MySequence
-//
-//@AUTHOR: Author Unknown
 //
 //@DESCRIPTION:
 //  todo: provide annotation
@@ -1812,15 +1752,6 @@ bsl::ostream& test::operator<<(bsl::ostream& stream,
 
 #endif
 
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
-
 // test_mysequence.cpp  -*-C++-*-
 
 #include <bsl_iostream.h>
@@ -1975,15 +1906,6 @@ bsl::ostream& MySequence::print(
 
 }  // close namespace test
 }  // close enterprise namespace
-
-// ----------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2005
-//      All Rights Reserved.
-//      Property of Bloomberg L.P.  (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ----------------------------------
 
 namespace BloombergLP {
 namespace test {
@@ -2386,6 +2308,10 @@ int main(int argc, char *argv[])
                                  FM::e_DEFAULT,
                                  Class::e_BER_SEQUENCE,
                                  &otherTag);
+        TEST_SELECT_WITH_ALT_TAG(bdldfp::Decimal64,
+                                 FM::e_DEFAULT,
+                                 Class::e_BER_OCTET_STRING,
+                                 &otherTag);
 
         otherTag = Class::e_BER_OCTET_STRING;
         TEST_SELECT_WITH_ALT_TAG(bdlt::Date,
@@ -2721,6 +2647,10 @@ int main(int argc, char *argv[])
                                  FM::e_DEFAULT,
                                  Class::e_BER_SEQUENCE,
                                  &options);
+        TEST_SELECT_WITH_OPTIONS(bdldfp::Decimal64,
+                                 FM::e_DEFAULT,
+                                 Class::e_BER_OCTET_STRING,
+                                 &options);
 
         options.setEncodeDateAndTimeTypesAsBinary(true);
 
@@ -2906,7 +2836,9 @@ int main(int argc, char *argv[])
             const char *const FMT = DATA[i].d_ascii;
 
             if (veryVerbose) cout << "EXPECTED FORMAT: " << FMT << endl;
-            ostrstream out(buf, sizeof buf); out << DATA[i].d_enum << ends;
+            bdlsb::FixedMemOutStreamBuf obuf(buf, sizeof buf);
+            bsl::ostream out(&obuf);
+            out << DATA[i].d_enum << ends;
             if (veryVerbose) cout << "  ACTUAL FORMAT: " << buf << endl <<endl;
 
             const int SZ = strlen(FMT) + 1;

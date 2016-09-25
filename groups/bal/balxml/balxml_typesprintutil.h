@@ -79,9 +79,9 @@ BSLS_IDENT("$Id: $")
 //      bsl::vector<char>                   DEFAULT, BASE64, HEX, TEXT, IS_LIST
 //..
 // In addition to the types listed above, this component also recognizes the
-// following 'bdeat' type categories:
+// following 'bdlat' type categories:
 //..
-//      'bdeat' Type Category               Formatting Mode
+//      'bdlat' Type Category               Formatting Mode
 //      ---------------------               ---------------
 //      Enumeration                         DEFAULT, TEXT, DECIMAL
 //      CustomizedType                      Base type's formatting modes
@@ -101,7 +101,7 @@ BSLS_IDENT("$Id: $")
 //      bsl::string                         TEXT
 //      bsl::vector<char>                   BASE64
 //
-//      'bdeat' Type Category               Default Formatting Mode
+//      'bdlat' Type Category               Default Formatting Mode
 //      ---------------------               -----------------------
 //      Enumeration                         TEXT
 //..
@@ -206,6 +206,10 @@ BSLS_IDENT("$Id: $")
 
 #ifndef INCLUDED_BDLAT_TYPECATEGORY
 #include <bdlat_typecategory.h>
+#endif
+
+#ifndef INCLUDED_BDLDFP_DECIMAL
+#include <bdldfp_decimal.h>
 #endif
 
 #ifndef INCLUDED_BDLT_DATE
@@ -368,6 +372,15 @@ struct TypesPrintUtil_Imp {
     // This 'struct' contains functions that are used in the implementation of
     // this component.
 
+    template <class TYPE>
+    static bsl::ostream& printDateAndTime(
+                                         bsl::ostream&         stream,
+                                         const TYPE&           value,
+                                         const EncoderOptions *encoderOptions);
+        // Encode the specified 'value' into XML using ISO 8601 format and
+        // output the result to the specified 'stream' using the specified
+        // 'encoderOptions'.
+
     // BASE64 FUNCTIONS
     template <class TYPE>
     static bsl::ostream& printBase64(
@@ -490,6 +503,11 @@ struct TypesPrintUtil_Imp {
     static bsl::ostream& printDecimal(
                                     bsl::ostream&               stream,
                                     const double&               object,
+                                    const EncoderOptions       *encoderOptions,
+                                    bdlat_TypeCategory::Simple);
+    static bsl::ostream& printDefault(
+                                    bsl::ostream&               stream,
+                                    const bdldfp::Decimal64&    object,
                                     const EncoderOptions       *encoderOptions,
                                     bdlat_TypeCategory::Simple);
 
@@ -1589,64 +1607,86 @@ bsl::ostream& TypesPrintUtil_Imp::printDefault(
                      bdlat_TypeCategory::Simple());
 }
 
+template <class TYPE>
+inline
+bsl::ostream& TypesPrintUtil_Imp::printDateAndTime(
+                                          bsl::ostream&         stream,
+                                          const TYPE&           value,
+                                          const EncoderOptions *encoderOptions)
+{
+    bdlt::Iso8601UtilConfiguration config;
+    if (encoderOptions) {
+        config.setFractionalSecondPrecision(
+                          encoderOptions->datetimeFractionalSecondPrecision());
+        config.setUseZAbbreviationForUtc(
+                                     encoderOptions->useZAbbreviationForUtc());
+    }
+    else {
+        config.setFractionalSecondPrecision(6);
+        config.setUseZAbbreviationForUtc(false);
+    }
+    return bdlt::Iso8601Util::generate(stream, value, config);
+}
+
+
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::Date&           object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                    bsl::ostream&               stream,
+                                    const bdlt::Date&           object,
+                                    const EncoderOptions       *encoderOptions,
+                                    bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::DateTz&         object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                    bsl::ostream&               stream,
+                                    const bdlt::DateTz&         object,
+                                    const EncoderOptions       *encoderOptions,
+                                    bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::Datetime&       object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                         bsl::ostream&          stream,
+                                         const bdlt::Datetime&  object,
+                                         const EncoderOptions  *encoderOptions,
+                                         bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::DatetimeTz&     object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                       bsl::ostream&            stream,
+                                       const bdlt::DatetimeTz&  object,
+                                       const EncoderOptions    *encoderOptions,
+                                       bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::Time&           object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                          bsl::ostream&         stream,
+                                          const bdlt::Time&     object,
+                                          const EncoderOptions *encoderOptions,
+                                          bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline
 bsl::ostream& TypesPrintUtil_Imp::printDefault(
-                                            bsl::ostream&               stream,
-                                            const bdlt::TimeTz&         object,
-                                            const EncoderOptions       *,
-                                            bdlat_TypeCategory::Simple)
+                                    bsl::ostream&               stream,
+                                    const bdlt::TimeTz&         object,
+                                    const EncoderOptions       *encoderOptions,
+                                    bdlat_TypeCategory::Simple)
 {
-    return bdlt::Iso8601Util::generate(stream, object);
+    return printDateAndTime(stream, object, encoderOptions);
 }
 
 inline

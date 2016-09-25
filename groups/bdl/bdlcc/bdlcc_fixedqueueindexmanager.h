@@ -357,6 +357,7 @@ class FixedQueueIndexManager {
                                     // implementation note in the .cpp for more
                                     // details)
 
+
     };
 
     // CREATORS

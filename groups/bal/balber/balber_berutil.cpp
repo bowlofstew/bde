@@ -112,7 +112,7 @@ BSLS_IDENT_RCSID(balber_berutil_cpp,"$Id$ $CSID$")
 //: 5 The bias value is added to the exponent to get its final value.
 //: 6 Assemble the double value from the mantissa, exponent, and sign values.
 
-#include <bdlt_serialdateimputil.h>
+#include <bdlt_prolepticdateimputil.h>
 
 #include <bdlt_iso8601util.h>
 
@@ -126,6 +126,8 @@ BSLS_IDENT_RCSID(balber_berutil_cpp,"$Id$ $CSID$")
 #include <bdlt_datetz.h>
 #include <bdlt_time.h>
 #include <bdlt_timetz.h>
+
+#include <bdldfp_decimalconvertutil.h>
 
 #include <bslmf_assert.h>
 
@@ -322,8 +324,8 @@ int getValueUsingIso8601(bsl::streambuf *streamBuf,
         buf = &vecBuf[0];  // First byte of contiguous string
     }
 
-    const int bytesConsumed = streamBuf->sgetn(buf, length);
-    if (bytesConsumed != length) {
+    const bsl::streamsize bytesConsumed = streamBuf->sgetn(buf, length);
+    if (static_cast<int>(bytesConsumed) != length) {
         return FAILURE;                                               // RETURN
     }
 
@@ -333,13 +335,17 @@ int getValueUsingIso8601(bsl::streambuf *streamBuf,
 template <typename TYPE>
 inline
 int putValueUsingIso8601(bsl::streambuf *streamBuf,
-                         const TYPE&     value)
+                         const TYPE&     value,
+                         int             fractionalSecondPrecision = 6)
     // Write to the specified 'streamBuf' the length and the value of the
     // specified 'value' in the ISO 8601 format.  Return 0 on success and a
     // non-zero value otherwise.
 {
     char buf[bdlt::Iso8601Util::k_MAX_STRLEN];
-    int len = bdlt::Iso8601Util::generate(buf, sizeof(buf), value);
+    bdlt::Iso8601UtilConfiguration config;
+    config.setFractionalSecondPrecision(fractionalSecondPrecision);
+    int len = bdlt::Iso8601Util::generate(buf, sizeof(buf), value, config);
+
     return balber::BerUtil_Imp::putStringValue(streamBuf, buf, len);
 }
 
@@ -385,9 +391,10 @@ bsls::Types::Int64 getSerialDateValue(const bdlt::Date& value)
     // serial value could be negative if 'value' occurs before the predefined
     // epoch date.
 {
-    const int serialDate = bdlt::SerialDateImpUtil::ymdToSerial(value.year(),
-                                                                value.month(),
-                                                                value.day());
+    const int serialDate = bdlt::ProlepticDateImpUtil::ymdToSerial(
+                                                                 value.year(),
+                                                                 value.month(),
+                                                                 value.day());
 
     const bsls::Types::Int64 dateOffset = serialDate - EPOCH_SERIAL_DATE;
 
@@ -567,7 +574,8 @@ int BerUtil_Imp::getBinaryDateValue(bsl::streambuf  *streamBuf,
     getIntegerValue(streamBuf, &serialDate, length);
 
     int year, month, day;
-    bdlt::SerialDateImpUtil::serialToYmd(&year,
+    bdlt::ProlepticDateImpUtil::serialToYmd(
+                                         &year,
                                          &month,
                                          &day,
                                          static_cast<int>(
@@ -642,7 +650,8 @@ int BerUtil_Imp::getBinaryDatetimeValue(bsl::streambuf *streamBuf,
     }
 
     int year, month, day;
-    bdlt::SerialDateImpUtil::serialToYmd(&year,
+    bdlt::ProlepticDateImpUtil::serialToYmd(
+                                         &year,
                                          &month,
                                          &day,
                                          static_cast<int>(
@@ -1103,7 +1112,8 @@ int BerUtil_Imp::getValue(bsl::streambuf *streamBuf,
 
     BSLS_ASSERT(&value[length-1] == &value[0] + length - 1);
 
-    const int bytesConsumed = streamBuf->sgetn(&(*value)[0], length);
+    const bsl::streamsize bytesConsumed =
+                                        streamBuf->sgetn(&(*value)[0], length);
 
     return length == bytesConsumed ? SUCCESS : FAILURE;
 }
@@ -1161,6 +1171,32 @@ int BerUtil_Imp::getValue(bsl::streambuf *streamBuf,
          ? getValueUsingIso8601(streamBuf, value, length)
          : getBinaryTimeTzValue(streamBuf, value, length);
 }
+
+int BerUtil_Imp::getValue(bsl::streambuf     *streamBuf,
+                          bdldfp::Decimal64  *value,
+                          int                 length)
+{
+    enum { SUCCESS = 0, FAILURE = -1 };
+
+    unsigned char buf[8];
+    if (static_cast<bsl::size_t>(length) > sizeof(buf)) {
+        return FAILURE;
+    }
+
+    const bsl::streamsize bytesConsumed =
+                        streamBuf->sgetn(reinterpret_cast<char*>(buf), length);
+
+    if (bytesConsumed != length) {
+        return FAILURE;                                               // RETURN
+    }
+
+
+    *value = bdldfp::DecimalConvertUtil::decimal64FromMultiWidthEncoding(
+        buf, length);
+
+    return SUCCESS;
+}
+
 
 int BerUtil_Imp::numBytesToStream(short value)
 {
@@ -1265,6 +1301,27 @@ int BerUtil_Imp::numBytesToStream(long long value)
     // Round up to correct number of bytes:
 
     return (numBits + e_BITS_PER_OCTET - 1) / e_BITS_PER_OCTET;
+}
+
+int BerUtil_Imp::putValue(bsl::streambuf          *streamBuf,
+                          bdldfp::Decimal64        value,
+                          const BerEncoderOptions *)
+{
+
+    enum { SUCCESS = 0, FAILURE = -1 };
+
+    unsigned char buf[8];
+    bsls::Types::size_type length =
+        bdldfp::DecimalConvertUtil::decimal64ToMultiWidthEncoding(buf, value);
+    putLength(streamBuf, static_cast<int>(length));
+
+    if (static_cast<bsl::streamsize>(length) ==
+        streamBuf->sputn(reinterpret_cast<char*>(buf), length)) {
+        return SUCCESS;
+    }
+    else {
+        return FAILURE;
+    }
 }
 
 int BerUtil_Imp::putDoubleValue(bsl::streambuf *stream, double value)
@@ -1423,7 +1480,9 @@ int BerUtil_Imp::putValue(bsl::streambuf          *streamBuf,
 
     return options && options->encodeDateAndTimeTypesAsBinary()
          ? putBinaryDatetimeValue(streamBuf, value)
-         : putValueUsingIso8601(streamBuf, value);
+         : putValueUsingIso8601(streamBuf,
+                                value,
+                                options->datetimeFractionalSecondPrecision());
 }
 
 int BerUtil_Imp::putValue(bsl::streambuf          *streamBuf,
@@ -1447,7 +1506,9 @@ int BerUtil_Imp::putValue(bsl::streambuf          *streamBuf,
 
     return options && options->encodeDateAndTimeTypesAsBinary()
          ? putBinaryDatetimeTzValue(streamBuf, value)
-         : putValueUsingIso8601(streamBuf, value);
+         : putValueUsingIso8601(streamBuf,
+                                value,
+                                options->datetimeFractionalSecondPrecision());
 }
 
 int BerUtil_Imp::putValue(bsl::streambuf          *streamBuf,

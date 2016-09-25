@@ -1,8 +1,6 @@
 // bslalg_scalardestructionprimitives.t.cpp                           -*-C++-*-
-
 #include <bslalg_scalardestructionprimitives.h>
 
-#include <bslalg_scalarprimitives.h>             // for testing only
 #include <bslma_usesbslmaallocator.h>            // for testing only
 #include <bslmf_istriviallycopyable.h>           // for testing only
 
@@ -20,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>     // 'atoi'
 #include <string.h>     // 'strlen'
+#include <new>
 
 using namespace BloombergLP;
 
@@ -573,7 +572,7 @@ void testDestroy(bool bitwiseCopyableFlag)
         char                                d_raw[MAX_SIZE * sizeof(T)];
         bsls::AlignmentUtil::MaxAlignedType d_align;
     } u;
-    T *buf = (T*)&u.d_raw[0];
+    T *buf = static_cast<T*>(static_cast<void *>(u.d_raw));
 
     for (int ti = 0; ti < NUM_DATA_2; ++ti) {
         const int         LINE  = DATA_2[ti].d_lineNum;

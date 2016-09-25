@@ -17,6 +17,10 @@ BSLS_IDENT("$Id: $")
 // implementation of the C++ standard type (if one exists).  Finally, place the
 // included symbols from the 'std' namespace (if any) into the 'bsl' namespace.
 
+#ifndef INCLUDED_BSLS_COMPILERFEATURES
+#include <bsls_compilerfeatures.h>
+#endif
+
 #ifndef INCLUDED_BSLS_NATIVESTD
 #include <bsls_nativestd.h>
 #endif
@@ -28,7 +32,11 @@ namespace bsl
     // Import selected symbols into bsl namespace
     using native_std::ptrdiff_t;
     using native_std::size_t;
-}  // close package namespace
+
+#if defined (BSLS_COMPILERFEATURES_SUPPORT_NULLPTR)
+    using native_std::nullptr_t;
+#endif
+}
 
 #endif
 

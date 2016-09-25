@@ -20,25 +20,9 @@ BSLS_IDENT("$Id: $")
 // specified object and is overloaded for all 'bdeat' Simple types.  The
 // following table describes the format in which various Simple types are
 // decoded.
-//..
-//  Simple Type          JSON Type  Notes
-//  -----------          ---------  -----
-//  char                 number
-//  unsigned char        number
-//  int                  number
-//  unsigned int         number
-//  bsls::Types::Int64   number
-//  bsls::Types::Uint64  number
-//  float                number
-//  double               number
-//  char *               string
-//  bsl::string          string
-//  bdlt::Date            string     ISO 8601 format
-//  bdlt::DateTz          string     ISO 8601 format
-//  bdlt::Time            string     ISO 8601 format
-//  bdlt::TimeTz          string     ISO 8601 format
-//  bdlt::DatetimeTz      string     ISO 8601 format
-//  bdlt::DatetimeTz      string     ISO 8601 format
+//
+// Refer to the details of the JSON encoding format supported by this utility
+// in the package documentation file (doc/baljsn.txt).
 //..
 //
 ///Usage
@@ -113,6 +97,10 @@ BSLS_IDENT("$Id: $")
 #include <bsls_types.h>
 #endif
 
+#ifndef INCLUDED_BDLDFP_DECIMAL
+#include <bdldfp_decimal.h>
+#endif
+
 namespace BloombergLP {
 namespace baljsn {
 
@@ -175,13 +163,14 @@ struct ParserUtil {
     static int getValue(bsls::Types::Uint64 *value, bslstl::StringRef data);
     static int getValue(float               *value, bslstl::StringRef data);
     static int getValue(double              *value, bslstl::StringRef data);
+    static int getValue(bdldfp::Decimal64   *value, bslstl::StringRef data);
     static int getValue(bsl::string         *value, bslstl::StringRef data);
-    static int getValue(bdlt::Date           *value, bslstl::StringRef data);
-    static int getValue(bdlt::Datetime       *value, bslstl::StringRef data);
-    static int getValue(bdlt::DatetimeTz     *value, bslstl::StringRef data);
-    static int getValue(bdlt::DateTz         *value, bslstl::StringRef data);
-    static int getValue(bdlt::Time           *value, bslstl::StringRef data);
-    static int getValue(bdlt::TimeTz         *value, bslstl::StringRef data);
+    static int getValue(bdlt::Date          *value, bslstl::StringRef data);
+    static int getValue(bdlt::Datetime      *value, bslstl::StringRef data);
+    static int getValue(bdlt::DatetimeTz    *value, bslstl::StringRef data);
+    static int getValue(bdlt::DateTz        *value, bslstl::StringRef data);
+    static int getValue(bdlt::Time          *value, bslstl::StringRef data);
+    static int getValue(bdlt::TimeTz        *value, bslstl::StringRef data);
     static int getValue(bsl::vector<char>   *value, bslstl::StringRef data);
         // Load into the specified 'value' the characters read from the
         // specified 'data'.  Return 0 on success or a non-zero value on

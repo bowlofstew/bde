@@ -157,7 +157,7 @@ BSLS_IDENT("$Id: $")
 #include <bdlt_currenttime.h>
 #endif
 
-#ifndef INCLUDED_BDLT_TIMEINTERVAL
+#ifndef INCLUDED_BSLS_TIMEINTERVAL
 #include <bsls_timeinterval.h>
 #endif
 
@@ -178,6 +178,10 @@ BSLS_IDENT("$Id: $")
 #endif
 
 #ifdef BSLS_PLATFORM_OS_UNIX
+
+    #ifndef INCLUDED_BSL_C_ERRNO
+    #include <bsl_c_errno.h>
+    #endif
 
     #ifndef INCLUDED_BSL_C_SYS_TIME
     #include <bsl_c_sys_time.h>

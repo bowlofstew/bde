@@ -11,12 +11,13 @@ BSLS_IDENT_RCSID(bdldfp_decimalutil_cpp,"$Id$ $CSID$")
 #include <bslmf_assert.h>
 
 #include <bsl_cmath.h>
+#include <bsl_cstring.h>
 #include <errno.h>
 #include <math.h>  // For the  FP_* macros
 
 #ifdef BDLDFP_DECIMALPLATFORM_DECNUMBER
 extern "C" {
-#include <decSingle.h>
+#include <decnumber/decSingle.h>
 }
 #endif
 
@@ -36,9 +37,44 @@ extern "C" {
 
 #include <errno.h>
 
-
 namespace BloombergLP {
 namespace bdldfp {
+
+
+namespace {
+
+bool isNanString(const char *str) {
+    // Return 'true' if the specified 'str' represents a NaN value, and 'false'
+    // otherwise.  Note that the IEEE 754 standard specifies sequence of
+    // characters equivalent to "NaN" or "sNaN" except for case is a valid
+    // representation of NaN.
+
+    // For the sake of efficiency, we rely on the trick that any alphabetic
+    // character [a-zA-Z] in ASCII encoding can be bit-wise 'or'ed with '_'
+    // (0x20) to get the corresponding lower case character.
+
+    bsl::size_t len = bsl::strlen(str);
+    if (len < 3) {
+        return false;
+    }
+
+    if ((str[0] | ' ') == 's') {
+        ++str;
+        if (len != 4) {
+            return false;
+        }
+    }
+    else if (len != 3) {
+        return false;
+    }
+
+    return ((str[0] | ' ') == 'n' &&
+            (str[1] | ' ') == 'a' &&
+            (str[2] | ' ') == 'n');
+}
+
+}  // close unnamed namespace
+
 
                              // Creator functions
 
@@ -48,7 +84,11 @@ int DecimalUtil::parseDecimal32(Decimal32 *out, const char *str)
     BSLS_ASSERT(out != 0);
     BSLS_ASSERT(str != 0);
 
-    *out = DecimalImpUtil::parse32(str);
+    Decimal32 d = DecimalImpUtil::parse32(str);
+    if (isNan(d) && !isNanString(str)) {
+        return -1;
+    }
+    *out = d;
     return 0;
 }
 
@@ -58,7 +98,11 @@ int DecimalUtil::parseDecimal64(Decimal64 *out, const char *str)
     BSLS_ASSERT(out != 0);
     BSLS_ASSERT(str != 0);
 
-    *out = DecimalImpUtil::parse64(str);
+    Decimal64 d = DecimalImpUtil::parse64(str);
+    if (isNan(d) && !isNanString(str)) {
+        return -1;
+    }
+    *out = d;
     return 0;
 }
 
@@ -67,7 +111,12 @@ int DecimalUtil::parseDecimal128(Decimal128 *out, const char *str)
     BSLS_ASSERT(out != 0);
     BSLS_ASSERT(str != 0);
 
-    *out = DecimalImpUtil::parse128(str);
+    Decimal128 d = DecimalImpUtil::parse128(str);
+
+    if (isNan(d) && !isNanString(str)) {
+        return -1;
+    }
+    *out = d;
     return 0;
 }
 
@@ -89,6 +138,49 @@ int DecimalUtil::parseDecimal128(Decimal128 *out, const bsl::string& str)
     BSLS_ASSERT(out != 0);
 
     return parseDecimal128(out, str.c_str());
+}
+
+                                // Formatting functions
+
+void DecimalUtil::format(Decimal32 value, bsl::string *out)
+{
+    char buffer[BDLDFP_DECIMALPLATFORM_SNPRINTF_BUFFER_SIZE];
+
+    DenselyPackedDecimalImpUtil::StorageType32 dpdStorage;
+    dpdStorage = DecimalImpUtil::convertToDPD(*value.data());
+
+    DecimalImpUtil_DecNumber::ValueType32 dpdValue;
+    bsl::memcpy(&dpdValue, &dpdStorage, sizeof(dpdValue));
+
+    DecimalImpUtil_DecNumber::format(dpdValue, buffer);
+    out->assign(buffer);
+}
+
+void DecimalUtil::format(Decimal64 value, bsl::string *out)
+{
+    char buffer[BDLDFP_DECIMALPLATFORM_SNPRINTF_BUFFER_SIZE];
+
+    DenselyPackedDecimalImpUtil::StorageType64 dpdStorage;
+    dpdStorage = DecimalImpUtil::convertToDPD(*value.data());
+
+    DecimalImpUtil_DecNumber::ValueType64 dpdValue;
+    bsl::memcpy(&dpdValue, &dpdStorage, sizeof(dpdValue));
+
+    DecimalImpUtil_DecNumber::format(dpdValue, buffer);
+    out->assign(buffer);
+}
+
+void DecimalUtil::format(Decimal128 value, bsl::string *out)
+{
+    char buffer[BDLDFP_DECIMALPLATFORM_SNPRINTF_BUFFER_SIZE];
+    DenselyPackedDecimalImpUtil::StorageType128 dpdStorage;
+    dpdStorage = DecimalImpUtil::convertToDPD(*value.data());
+
+    DecimalImpUtil_DecNumber::ValueType128 dpdValue;
+    bsl::memcpy(&dpdValue, &dpdStorage, sizeof(dpdValue));
+
+    DecimalImpUtil_DecNumber::format(dpdValue, buffer);
+    out->assign(buffer);
 }
 
                                 // Math functions

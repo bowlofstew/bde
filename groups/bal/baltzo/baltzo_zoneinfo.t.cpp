@@ -469,40 +469,7 @@ int main(int argc, char *argv[])
                           << "==================================="
                           << endl;
 
-
-        static const struct {
-            int              d_line;           // source line number
-            bdlt::EpochUtil::TimeT64 d_timet;
-        } DATA [] = {
-            // LINE
-            { L_, -62135596801LL },
-            { L_, -62135596800LL },
-            { L_, -62135769601LL },
-            { L_, -62135769600LL },
-            { L_, -60000000000LL },
-            { L_,            0LL },
-            { L_,       123140LL },
-            { L_, 253402300798LL },
-            { L_, 253402300799LL },
-            { L_, 253402300800LL },
-        };
-        const int NUM_DATA = sizeof DATA / sizeof *DATA;
-
-        for (int ti = 0; ti < NUM_DATA; ++ti) {
-            const int LINE = DATA[ti].d_line;
-            TimeT64 input  = DATA[ti].d_timet;
-
-            bdlt::Datetime expected, result;
-            int            expectedRc, resultRc;
-
-            expectedRc = bdlt::EpochUtil::convertFromTimeT64(&expected, input);
-            resultRc   = Obj::convertFromTimeT64(&result, input);
-
-            LOOP3_ASSERT(LINE, expectedRc, resultRc, expectedRc == resultRc);
-            if (0 == expectedRc) {
-                LOOP3_ASSERT(LINE, expected, result, expected == result);
-            }
-        }
+        if (verbose) cout << "Not applicable." << endl;
       } break;
       case 16: {
         // --------------------------------------------------------------------
@@ -521,52 +488,7 @@ int main(int argc, char *argv[])
         //   bdlt::EpochUtil::TimeT64 convertToTimeT64(const bdlt::Datetime& );
         // --------------------------------------------------------------------
 
-        if (verbose) cout << endl
-                          << "'baltzo::Zoneinfo' 'convertToTimeT64"
-                          << endl
-                          << "==================================="
-                          << endl;
-
-
-        static const struct {
-            int  d_line;           // source line number
-            int  d_Y;
-            int  d_M;
-            int  d_D;
-            int  d_h;
-            int  d_m;
-            int  d_s;
-            int  d_ms;
-        } DATA [] = {
-          // LINE
-            { L_, 0001, 01, 01, 00, 00, 00, 000 },
-            { L_, 0001, 01, 01, 00, 00, 00, 001 },
-            { L_, 0001, 01, 01, 00, 00, 00, 999 },
-            { L_, 0001, 01, 01, 01, 01, 01, 000 },
-            { L_, 1000, 01, 01, 01, 01, 01, 000 },
-            { L_, 1969, 12, 31, 23, 59, 59, 000 },
-            { L_, 1969, 12, 31, 23, 59, 59, 999 },
-            { L_, 1970, 01, 01, 00, 00, 00, 000 },
-            { L_, 1970, 01, 01, 00, 00, 01, 000 },
-            { L_, 3000, 01, 01, 00, 00, 01, 000 },
-        };
-        const int NUM_DATA = sizeof DATA / sizeof *DATA;
-
-        for (int ti = 0; ti < NUM_DATA; ++ti) {
-            const int LINE   = DATA[ti].d_line;
-            const bdlt::Datetime input(DATA[ti].d_Y,
-                                      DATA[ti].d_M,
-                                      DATA[ti].d_D,
-                                      DATA[ti].d_h,
-                                      DATA[ti].d_m,
-                                      DATA[ti].d_s,
-                                      DATA[ti].d_ms);
-
-            TimeT64 EXPECTED = bdlt::EpochUtil::convertToTimeT64(input);
-            TimeT64 result   = Obj::convertToTimeT64(input);
-
-            LOOP3_ASSERT(LINE, EXPECTED, result, EXPECTED == result);
-        }
+        if (verbose) cout << "Not applicable." << endl;
       } break;
       case 15: {
         // --------------------------------------------------------------------
@@ -2882,24 +2804,24 @@ int main(int argc, char *argv[])
         //LINE L SPL  SPEC   EXP
         //---- - ---  ----   ---
 
-        { L_,  0,  0, "yB",  "["                                  NL
-                             "time = 01JAN1970_00:33:20.000"      NL
+        { L_,  0,  0, "yB",  "["                                        NL
+                             "time = 01JAN1970_00:33:20.000000"         NL
                              "descriptor = "
                              + descriptorPrintOutput(DB, -1, 0) +
-                             "]"                                  NL
+                             "]"                                        NL
                                                                              },
 
-        { L_,  0,  1, "yB",  "["                                  NL
-                             " time = 01JAN1970_00:33:20.000"     NL
+        { L_,  0,  1, "yB",  "["                                        NL
+                             " time = 01JAN1970_00:33:20.000000"        NL
                              " descriptor = "
                              + descriptorPrintOutput(DB, -1, 1) +
-                             "]"                                  NL
+                             "]"                                        NL
                                                                              },
 
-        { L_,  0, -1, "yB",  "["                                   SP
-                             "time = 01JAN1970_00:33:20.000"       SP
+        { L_,  0, -1, "yB",  "["                                         SP
+                             "time = 01JAN1970_00:33:20.000000"          SP
                              "descriptor = "
-                             + descriptorPrintOutput(DB, -1, -1) + SP
+                             + descriptorPrintOutput(DB, -1, -1) +       SP
                              "]"
                                                                              },
 
@@ -2910,47 +2832,47 @@ int main(int argc, char *argv[])
         //LINE L SPL  SPEC   EXP
         //---- - ---  ----   ---
 
-        { L_,  3,  0, "yB",  "["                                      NL
-                             "time = 01JAN1970_00:33:20.000"          NL
+        { L_,  3,  0, "yB",  "["                                         NL
+                             "time = 01JAN1970_00:33:20.000000"          NL
                              "descriptor = "
                              + descriptorPrintOutput(DB, -4, 0) +
-                             "]"                                      NL
+                             "]"                                         NL
                                                                              },
 
-        { L_,  3,  2, "yB",  "      ["                                NL
-                             "        time = 01JAN1970_00:33:20.000"  NL
+        { L_,  3,  2, "yB",  "      ["                                   NL
+                             "        time = 01JAN1970_00:33:20.000000"  NL
                              "        descriptor = "
                              + descriptorPrintOutput(DB, -4, 2) +
-                             "      ]"                                NL
+                             "      ]"                                   NL
                                                                              },
 
-        { L_,  3, -2, "yB",  "      ["                                SP
-                             "time = 01JAN1970_00:33:20.000"          SP
+        { L_,  3, -2, "yB",  "      ["                                   SP
+                             "time = 01JAN1970_00:33:20.000000"          SP
                              "descriptor = "
-                             + descriptorPrintOutput(DB, -4, -2) +    SP
+                             + descriptorPrintOutput(DB, -4, -2) +       SP
                              "]"
                                                                              },
 
 
-        { L_, -3,  0, "yB",  "["                                      NL
-                             "time = 01JAN1970_00:33:20.000"          NL
+        { L_, -3,  0, "yB",  "["                                         NL
+                             "time = 01JAN1970_00:33:20.000000"          NL
                              "descriptor = "
                              + descriptorPrintOutput(DB, -4, 0) +
-                             "]"                                      NL
+                             "]"                                         NL
                                                                              },
 
 
-        { L_, -3,  2, "yB",  "["                                      NL
-                             "        time = 01JAN1970_00:33:20.000"  NL
+        { L_, -3,  2, "yB",  "["                                         NL
+                             "        time = 01JAN1970_00:33:20.000000"  NL
                              "        descriptor = "
                              + descriptorPrintOutput(DB, -4, 2) +
-                             "      ]"                                NL
+                             "      ]"                                   NL
                                                                              },
 
-        { L_, -3, -2, "yB",  "["                                      SP
-                             "time = 01JAN1970_00:33:20.000"          SP
+        { L_, -3, -2, "yB",  "["                                         SP
+                             "time = 01JAN1970_00:33:20.000000"          SP
                              "descriptor = "
-                             + descriptorPrintOutput(DB, -4, -2) +     SP
+                             + descriptorPrintOutput(DB, -4, -2) +       SP
                              "]"
                                                                              },
         // -----------------------------------------------------------------
@@ -2960,11 +2882,11 @@ int main(int argc, char *argv[])
         //LINE L SPL  SPEC   EXP
         //---- - ---  ----   ---
 
-        { L_,  2,  3, "xB",  "      ["                                 NL
-                             "         time = 01JAN1970_00:16:40.000"  NL
+        { L_,  2,  3, "xB",  "      ["                                    NL
+                             "         time = 01JAN1970_00:16:40.000000"  NL
                              "         descriptor = "
                              + descriptorPrintOutput(DB, -3, 3) +
-                             "      ]"                                 NL
+                             "      ]"                                    NL
                                                                              },
 
 
@@ -2976,19 +2898,19 @@ int main(int argc, char *argv[])
         //---- - ---  ----   ---
 
         {
-            L_,
-            -9,
-            -9,
-            "yB",
-            "[ 01JAN1970_00:33:20.000 " + descriptorOperatorOutput(DB) + " ]"
+        L_,
+        -9,
+        -9,
+        "yB",
+        "[ 01JAN1970_00:33:20.000000 " + descriptorOperatorOutput(DB) + " ]"
         },
 
         {
-            L_,
-            -9,
-            -9,
-            "nD",
-            "[ 01JAN1970_00:00:00.000 " + descriptorOperatorOutput(DD) + " ]"
+        L_,
+        -9,
+        -9,
+        "nD",
+        "[ 01JAN1970_00:00:00.000000 " + descriptorOperatorOutput(DD) + " ]"
         },
 
 #undef NL

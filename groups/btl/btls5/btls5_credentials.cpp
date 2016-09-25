@@ -49,6 +49,7 @@ static bool areValidCredentials(const bslstl::StringRef& username,
 void Credentials::set(const bslstl::StringRef& username,
                       const bslstl::StringRef& password)
 {
+    (void)areValidCredentials;
     BSLS_ASSERT(areValidCredentials(username, password));
 
     d_username.assign(username.begin(), username.end());
@@ -66,7 +67,7 @@ bsl::ostream& Credentials::print(bsl::ostream& stream,
     bslim::Printer printer(&stream, level, spacesPerLevel);
     printer.start();
     printer.printAttribute("username", d_username);
-    printer.printAttribute("password", d_password);
+    printer.printAttribute("password", bsl::string("*****"));
     printer.end();
 
     return stream;
@@ -81,7 +82,7 @@ bsl::ostream& btls5::operator<<(bsl::ostream&      stream,
     bslim::Printer printer(&stream, 0, -1);
     printer.start();
     printer.printValue(object.username());
-    printer.printValue(object.password());
+    printer.printValue(bsl::string("*****"));
     printer.end();
 
     return stream;

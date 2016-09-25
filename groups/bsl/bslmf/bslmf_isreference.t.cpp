@@ -27,38 +27,48 @@ using namespace BloombergLP;
 // ----------------------------------------------------------------------------
 // [ 2] USAGE EXAMPLE
 
-//=============================================================================
-//                       STANDARD BDE ASSERT TEST MACRO
-//-----------------------------------------------------------------------------
-// NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
-// FUNCTIONS, INCLUDING IOSTREAMS.
-static int testStatus = 0;
+// ============================================================================
+//                     STANDARD BSL ASSERT TEST FUNCTION
+// ----------------------------------------------------------------------------
 
-void aSsErT(bool b, const char *s, int i)
+namespace {
+
+int testStatus = 0;
+
+void aSsErT(bool condition, const char *message, int line)
 {
-    if (b) {
-        printf("Error " __FILE__ "(%d): %s    (failed)\n", i, s);
-        if (testStatus >= 0 && testStatus <= 100) ++testStatus;
+    if (condition) {
+        printf("Error " __FILE__ "(%d): %s    (failed)\n", line, message);
+
+        if (0 <= testStatus && testStatus <= 100) {
+            ++testStatus;
+        }
     }
 }
 
-# define ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
+}  // close unnamed namespace
 
-//=============================================================================
-//                       STANDARD BDE TEST DRIVER MACROS
-//-----------------------------------------------------------------------------
+// ============================================================================
+//               STANDARD BSL TEST DRIVER MACRO ABBREVIATIONS
+// ----------------------------------------------------------------------------
+
+#define ASSERT       BSLS_BSLTESTUTIL_ASSERT
+#define ASSERTV      BSLS_BSLTESTUTIL_ASSERTV
+
 #define LOOP_ASSERT  BSLS_BSLTESTUTIL_LOOP_ASSERT
+#define LOOP0_ASSERT BSLS_BSLTESTUTIL_LOOP0_ASSERT
+#define LOOP1_ASSERT BSLS_BSLTESTUTIL_LOOP1_ASSERT
 #define LOOP2_ASSERT BSLS_BSLTESTUTIL_LOOP2_ASSERT
 #define LOOP3_ASSERT BSLS_BSLTESTUTIL_LOOP3_ASSERT
 #define LOOP4_ASSERT BSLS_BSLTESTUTIL_LOOP4_ASSERT
 #define LOOP5_ASSERT BSLS_BSLTESTUTIL_LOOP5_ASSERT
 #define LOOP6_ASSERT BSLS_BSLTESTUTIL_LOOP6_ASSERT
 
-#define Q   BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
-#define P   BSLS_BSLTESTUTIL_P   // Print identifier and value.
-#define P_  BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
-#define T_  BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
-#define L_  BSLS_BSLTESTUTIL_L_  // current Line number
+#define Q            BSLS_BSLTESTUTIL_Q   // Quote identifier literally.
+#define P            BSLS_BSLTESTUTIL_P   // Print identifier and value.
+#define P_           BSLS_BSLTESTUTIL_P_  // P(X) without '\n'.
+#define T_           BSLS_BSLTESTUTIL_T_  // Print a tab (w/o newline).
+#define L_           BSLS_BSLTESTUTIL_L_  // current Line number
 
 //=============================================================================
 //                  SEMI-STANDARD NEGATIVE-TESTING MACROS
@@ -69,6 +79,21 @@ void aSsErT(bool b, const char *s, int i)
 #define ASSERT_FAIL(EXPR)      BSLS_ASSERTTEST_ASSERT_FAIL(EXPR)
 #define ASSERT_OPT_PASS(EXPR)  BSLS_ASSERTTEST_ASSERT_OPT_PASS(EXPR)
 #define ASSERT_OPT_FAIL(EXPR)  BSLS_ASSERTTEST_ASSERT_OPT_FAIL(EXPR)
+
+//=============================================================================
+//                      WARNING SUPPRESSION
+//-----------------------------------------------------------------------------
+
+// This test driver intentional creates types with unusual use of cv-qualifiers
+// in order to confirm that there are no strange corners of the type system
+// that are not addressed by this traits component.  Consquently, we disable
+// certain warnings from common compilers.
+
+#if defined(BSLS_PLATFORM_CMP_GNU)
+# pragma GCC diagnostic ignored "-Wignored-qualifiers"
+#elif defined(BSLS_PLATFORM_CMP_MSVC)
+# pragma warning(disable : 4180) // cv-qualifiers meaningless on function types
+#endif
 
 //=============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
@@ -155,15 +180,21 @@ struct Incomplete;
 
 int main(int argc, char *argv[])
 {
-    int test = argc > 1 ? atoi(argv[1]) : 0;
-    bool verbose = argc > 2;
-    bool veryVerbose = argc > 3;
+    int                 test = argc > 1 ? atoi(argv[1]) : 0;
+    bool             verbose = argc > 2;
+    bool         veryVerbose = argc > 3;
+    bool     veryVeryVerbose = argc > 4;
+    bool veryVeryVeryVerbose = argc > 5;
 
-    (void) veryVerbose;
+    (void) veryVerbose;          // eliminate unused variable warning
+    (void) veryVeryVerbose;      // eliminate unused variable warning
+    (void) veryVeryVeryVerbose;  // eliminate unused variable warning
+
+    setbuf(stdout, NULL);       // Use unbuffered output
 
     printf("TEST " __FILE__ " CASE %d\n", test);
 
-    switch (test) { case 0:
+    switch (test) { case 0:  // Zero is always the leading case.
       case 2: {
         // --------------------------------------------------------------------
         // USAGE EXAMPLE
@@ -363,10 +394,33 @@ int main(int argc, char *argv[])
 #endif
 
         // C-5
-        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (int),  false);
-        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (void), false);
-        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (void), false);
-        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (int),  false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (int),    false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (void),   false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (void),   false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (int),    false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (...),    false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (...),    false);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (int...), false);
+
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&)(int),  true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&)(void), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&)(void), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&)(int),  true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&)(...),  true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&)(...),  true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&)(int...),
+                               true);
+
+#if defined(BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES)
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&&)(int), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&&)(void),true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&&)(void),true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&&)(int), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&&)(...), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, void (&&)(...), true);
+        TYPE_ASSERT_CVQ_PREFIX(bsl::is_reference, value, int  (&&)(int...),
+                               true);
+#endif
       } break;
       default: {
           fprintf(stderr, "WARNING: CASE `%d' NOT FOUND.\n", test);

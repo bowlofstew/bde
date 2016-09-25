@@ -153,7 +153,13 @@ int Tokenizer::extractStringValue()
             // value.  If this is the first time through the loop, we move the
             // current sequence of characters being processed to the front of
             // the internal buffer, otherwise we must expand the internal
-            // buffer to hold additional characters.
+            // buffer to hold additional characters.  If we are at the
+            // beginning of the string buffer then we dont need to move any
+            // characters and we simply expand the string buffer.
+
+            if (0 == d_valueBegin) {
+                firstTime = false;
+            }
 
             if (firstTime) {
                 const int numRead = moveValueCharsToStartAndReloadBuffer();
@@ -457,7 +463,7 @@ int Tokenizer::resetStreamBufGetPointer()
     const int numExtraCharsRead = static_cast<int>(d_stringBuffer.size()
                                                                    - d_cursor);
     const bsl::streamoff newPos = d_streambuf_p->pubseekoff(-numExtraCharsRead,
-                                                            bsl::ios_base::end,
+                                                            bsl::ios_base::cur,
                                                             bsl::ios_base::in);
 
     return newPos >= 0 ? 0 : -1;

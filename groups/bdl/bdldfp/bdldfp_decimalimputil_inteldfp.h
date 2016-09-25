@@ -62,7 +62,7 @@ BSLS_IDENT("$Id$")
 
 #ifndef INCLUDED_DECSINGLE
 extern "C" {
-#include <decSingle.h>
+#include <decnumber/decSingle.h>
 }
 #endif
 
@@ -1573,7 +1573,7 @@ DecimalImpUtil_IntelDfp::convertToDPD(
 inline
 DecimalImpUtil_IntelDfp::ValueType32
 DecimalImpUtil_IntelDfp::convertFromBID(
-                                BinaryIntegralDecimalImpUtil::StorageType32 bid)
+                               BinaryIntegralDecimalImpUtil::StorageType32 bid)
 {
     ValueType32 result;
     bsl::memcpy(&result, &bid, sizeof(result));
@@ -1584,7 +1584,7 @@ DecimalImpUtil_IntelDfp::convertFromBID(
 inline
 DecimalImpUtil_IntelDfp::ValueType64
 DecimalImpUtil_IntelDfp::convertFromBID(
-                                BinaryIntegralDecimalImpUtil::StorageType64 bid)
+                               BinaryIntegralDecimalImpUtil::StorageType64 bid)
 {
     ValueType64 result;
     bsl::memcpy(&result, &bid, sizeof(result));
@@ -1595,7 +1595,7 @@ DecimalImpUtil_IntelDfp::convertFromBID(
 inline
 DecimalImpUtil_IntelDfp::ValueType128
 DecimalImpUtil_IntelDfp::convertFromBID(
-                               BinaryIntegralDecimalImpUtil::StorageType128 bid)
+                              BinaryIntegralDecimalImpUtil::StorageType128 bid)
 {
     ValueType128 result;
     bsl::memcpy(&result, &bid, sizeof(result));
@@ -1658,4 +1658,3 @@ DecimalImpUtil_IntelDfp::convertToBID(
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------- END-OF-FILE ----------------------------------
-

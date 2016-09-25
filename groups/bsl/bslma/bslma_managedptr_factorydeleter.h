@@ -14,10 +14,11 @@ BSLS_IDENT("$Id$ $CSID$")
 //
 //@SEE_ALSO: bslma_managedptr
 //
-//@DESCRIPTION: This component provides a class used as an implementation
-// detail by 'bslma::ManagedPtr' to produce a type-erasing deleter function
-// that will destroy an object of a parameterized type, using a factory of
-// another parameterized type that provides a 'deleteObject' method.
+//@DESCRIPTION: This component provides a class,
+// 'bslma::ManagedPtr_FactoryDeleter', used as an implementation detail by
+// 'bslma::ManagedPtr' to produce a type-erasing deleter function that will
+// destroy an object of a parameterized type, using a factory of another
+// parameterized type that provides a 'deleteObject' method.
 
 #ifndef INCLUDED_BSLSCM_VERSION
 #include <bslscm_version.h>
@@ -37,7 +38,7 @@ namespace bslma {
 template <class ELEMENT_TYPE, class FACTORY>
 struct ManagedPtr_FactoryDeleter {
     // This utility provides a general deleter for objects that provide a
-    // 'deleteObject' operation (e.g., 'bslma::Allocator', 'bdema_Pool').
+    // 'deleteObject' operation (e.g., 'bslma::Allocator', 'bdlma_Pool').
 
     // CLASS METHODS
     static void deleter(void *object, void *factory);
@@ -52,7 +53,7 @@ struct ManagedPtr_FactoryDeleter {
 };
 
 // ============================================================================
-//                      INLINE FUNCTION DEFINITIONS
+//                          INLINE DEFINITIONS
 // ============================================================================
 
                     // --------------------------------

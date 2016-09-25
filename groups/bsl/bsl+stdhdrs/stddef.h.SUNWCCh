@@ -30,11 +30,11 @@ BSLS_IDENT("$Id: $")
 
 #if !defined(BSL_OVERRIDES_STD) || !defined(__cplusplus)
 
-#   ifndef INCLUDED_BSL_STDHDRS_INCPATH
+#   ifndef INCLUDED_BSL_STDHDRS_INCPATHS
 #   include <bsl_stdhdrs_incpaths.h>
 #   endif
 
-#   include BSL_NATIVE_C_LIB_HEADER(stddef.h)
+#   include BSL_NATIVE_OS_RTL_HEADER(stddef.h)
 
 #else  /* defined(BSL_OVERRIDES_STD) */
 
@@ -47,14 +47,14 @@ BSLS_IDENT("$Id: $")
 #   define BSL_STDHDRS_EPILOGUE_RUN_BY_c_stddef
 #   endif
 
-#   ifndef INCLUDED_BSL_STDHDRS_INCPATH
+#   ifndef INCLUDED_BSL_STDHDRS_INCPATHS
 #   include <bsl_stdhdrs_incpaths.h>
 #   endif
 
-#   include BSL_NATIVE_C_LIB_HEADER(stddef.h)
+#   include BSL_NATIVE_OS_RTL_HEADER(stddef.h)
 
 //  On SUN, 'stddef.h' (a C header) defines 'size_t'.  This odd implementation
-//  forces the following 'using' directive. 
+//  forces the following 'using' directive.
 #   ifdef BSLS_PLATFORM_CMP_SUN
 
 // This C header file might be included within an 'extern "C"' block.  To avoid

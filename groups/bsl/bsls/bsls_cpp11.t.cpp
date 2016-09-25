@@ -2,6 +2,7 @@
 
 #include <bsls_cpp11.h>
 
+#include <stdlib.h>
 #include <cstdlib>
 #include <iostream>
 
@@ -24,6 +25,7 @@
 // [ 5] BSLS_CPP11_NOEXCEPT_SPECIFICATION
 // [ 5] BSLS_CPP11_NOEXCEPT_OPERATOR
 // [ 6] BSLS_CPP11_OVERRIDE
+// [ 5] BSLS_CPP11_PROVISIONALLY_FALSE
 //-----------------------------------------------------------------------------
 // [ 7] MACRO SAFETY
 // [ 8] USAGE EXAMPLE
@@ -97,9 +99,10 @@ namespace
       // 'throws4<T, U>()` is used to test the operator
       // 'noexcept(expr-with-commas)'
 
-
+    void throws5() BSLS_CPP11_NOEXCEPT_SPECIFICATION(
+                                                BSLS_CPP11_PROVISIONALLY_FALSE) 
+                                                                  {} 
 }  // close unnamed namespace
-
 
 //=============================================================================
 //                                MAIN PROGRAM
@@ -432,6 +435,9 @@ int main(int argc, char *argv[])
                                                         throws4<void, void>());
         ASSERT(isNoThrow8 == false);
 
+        throws5();
+        const bool isNoThrow9 = BSLS_CPP11_NOEXCEPT_OPERATOR(throws5());
+        ASSERT(isNoThrow9 == false);
 
       } break;
       case 4: {
@@ -631,6 +637,7 @@ int main(int argc, char *argv[])
 #else
           int X (B);
 #endif
+          (void)X;  // unused variable warning
       } break;
       default: {
         std::cerr << "WARNING: CASE `" << test << "' NOT FOUND." << std::endl;

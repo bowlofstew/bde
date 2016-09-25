@@ -17,7 +17,6 @@
 #include <ball_rule.h>
 #include <ball_userfieldtype.h>
 #include <ball_userfields.h>
-#include <ball_userfieldsschema.h>
 #include <ball_severity.h>
 #include <ball_testobserver.h>                  // for testing only
 
@@ -243,7 +242,6 @@ typedef ball::RecordBuffer               RecBuf;
 
 typedef ball::UserFieldType              FieldType;
 typedef ball::UserFields                 FieldValues;
-typedef ball::UserFieldsSchema           Descriptors;
 
 typedef ball::ThresholdAggregate            Thresholds;
 typedef Logger::PublishAllTriggerCallback   Pac;
@@ -968,14 +966,8 @@ void inheritThresholdLevels(int        *recordLevel,
 static int globalFactorialArgument;  // TBD kludge
 
 static
-void myPopulator(ball::UserFields              *list,
-                 const ball::UserFieldsSchema&  descriptors)
+void myPopulator(ball::UserFields *list)
 {
-    ASSERT(1                  == descriptors.length());
-    ASSERT(0                  == descriptors.indexOf("n!"));
-    ASSERT(FieldType::e_INT64 == descriptors.type(0));
-    ASSERT("n!"               == descriptors.name(0));
-
     list->appendInt64(globalFactorialArgument);
 }
 
@@ -1327,8 +1319,7 @@ void simpleThresholdLevels(int        *recordLevel,
 }
 
 static
-void simplePopulator(ball::UserFields              *list,
-                     const ball::UserFieldsSchema&  schema)
+void simplePopulator(ball::UserFields *list)
 {
     list->appendInt64(1066);
     list->appendString("XXX");
@@ -2046,80 +2037,77 @@ int main(int argc, char *argv[])
         //   LOW-LEVEL LOGGING
         // --------------------------------------------------------------------
 
-        // TBD: The bsls_log integration is being disabled for BDE 2.23 (see
-        // 64382709).
+        if (verbose)
+            cout << endl << "TESTING LOW-LEVEL LOGGING" << endl
+                         << "=========================" << endl;
 
-//      if (verbose)
-//          cout << endl << "TESTING LOW-LEVEL LOGGING" << endl
-//                       << "=========================" << endl;
-//
-//
-//      // Saving low-level handler
-//      const bsls::Log::LogMessageHandler oldBslsHandler =
-//                                              bsls::Log::logMessageHandler();
-//      {
-//          if (verbose) cout << "\tCreate the test observer." << endl;
-//          ball::TestObserver testObserver(cout);
-//
-//          if (verbose) cout << "\tCreate scoped guard." << endl;
-//          ball::LoggerManagerConfiguration configuration;
-//          ball::LoggerManagerScopedGuard guard(&testObserver, configuration);
-//
-//          const int oldNumCategories =
-//                        ball::LoggerManager::singleton().numCategories();
-//
-//          if (verbose) cout << "\tConfirm new low-level handler." << endl;
-//          ASSERT(bsls::Log::logMessageHandler() != oldBslsHandler);
-//
-//          if (verbose) cout << "\tWrite a low-level log message." << endl;
-//          const char * const file    = "TestFile.cpp";
-//          const int          line    = 507;
-//          const char * const message = "Some test message.";
-//          bsls::Log::logMessage(file, line, message);
-//
-//          if (verbose) cout << "\tConfirm a new category created." << endl;
-//          LOOP2_ASSERT(oldNumCategories + 1,
-//                       ball::LoggerManager::singleton().numCategories(),
-//                       oldNumCategories + 1
-//                        == ball::LoggerManager::singleton().numCategories());
-//
-//          if(verbose) cout << "\tConfirm record passed directly." << endl;
-//          LOOP_ASSERT(testObserver.numPublishedRecords(),
-//                      1 == testObserver.numPublishedRecords());
-//
-//          if(verbose) cout << "\tConfirm values in record." << endl;
-//          const ball::Record& record = testObserver.lastPublishedRecord();
-//          const ball::RecordAttributes& attributes = record.fixedFields();
-//
-//          LOOP2_ASSERT("BSLS.LOG", attributes.category(),
-//                      0 == strcmp("BSLS.LOG", attributes.category()));
-//
-//          LOOP2_ASSERT(ball::Severity::e_ERROR,
-//                       attributes.severity(),
-//                       ball::Severity::e_ERROR == attributes.severity());
-//
-//          LOOP2_ASSERT(file,
-//                       attributes.fileName(),
-//                       0 == strcmp(file, attributes.fileName()));
-//
-//          LOOP2_ASSERT(line,
-//                       attributes.lineNumber(),
-//                       line == attributes.lineNumber());
-//
-//          LOOP2_ASSERT(message,
-//                       attributes.message(),
-//                       0 == strcmp(message, attributes.message()));
-//
-//          if(veryVerbose) cout << "Message: " << attributes.message()<< endl;
-//
-//          if(verbose) cout << "\tDestroy scoped guard." << endl;
-//          // Let guard fall out of this scope
-//      }
-//
-//      {
-//          if(verbose) cout << "\tConfirm old handler restored." << endl;
-//          ASSERT(bsls::Log::logMessageHandler() == oldBslsHandler);
-//      }
+        // Saving low-level handler
+        const bsls::Log::LogMessageHandler oldBslsHandler =
+                                                bsls::Log::logMessageHandler();
+        {
+            if (verbose) cout << "\tCreate the test observer." << endl;
+            ball::TestObserver testObserver(cout);
+
+            if (verbose) cout << "\tCreate scoped guard." << endl;
+            ball::LoggerManagerConfiguration configuration;
+            ball::LoggerManagerScopedGuard guard(&testObserver, configuration);
+
+            const int oldNumCategories =
+                          ball::LoggerManager::singleton().numCategories();
+
+            if (verbose) cout << "\tConfirm new low-level handler." << endl;
+            ASSERT(bsls::Log::logMessageHandler() != oldBslsHandler);
+
+            if (verbose) cout << "\tWrite a low-level log message." << endl;
+            bsls::LogSeverity::Enum severity = bsls::LogSeverity::e_ERROR;
+            const char *const       file     = "TestFile.cpp";
+            const int               line     = 507;
+            const char *const       message  = "Some test message.";
+            bsls::Log::logMessage(severity, file, line, message);
+
+            if (verbose) cout << "\tConfirm a new category created." << endl;
+            LOOP2_ASSERT(oldNumCategories + 1,
+                         ball::LoggerManager::singleton().numCategories(),
+                         oldNumCategories + 1
+                          == ball::LoggerManager::singleton().numCategories());
+
+            if(verbose) cout << "\tConfirm record passed directly." << endl;
+            LOOP_ASSERT(testObserver.numPublishedRecords(),
+                        1 == testObserver.numPublishedRecords());
+
+            if(verbose) cout << "\tConfirm values in record." << endl;
+            const ball::Record& record = testObserver.lastPublishedRecord();
+            const ball::RecordAttributes& attributes = record.fixedFields();
+
+            LOOP2_ASSERT("BSLS.LOG", attributes.category(),
+                        0 == strcmp("BSLS.LOG", attributes.category()));
+
+            LOOP2_ASSERT(ball::Severity::e_ERROR,
+                         attributes.severity(),
+                         ball::Severity::e_ERROR == attributes.severity());
+
+            LOOP2_ASSERT(file,
+                         attributes.fileName(),
+                         0 == strcmp(file, attributes.fileName()));
+
+            LOOP2_ASSERT(line,
+                         attributes.lineNumber(),
+                         line == attributes.lineNumber());
+
+            LOOP2_ASSERT(message,
+                         attributes.message(),
+                         0 == strcmp(message, attributes.message()));
+
+            if(veryVerbose) cout << "Message: " << attributes.message()<< endl;
+
+            if(verbose) cout << "\tDestroy scoped guard." << endl;
+            // Let guard fall out of this scope
+        }
+
+        {
+            if(verbose) cout << "\tConfirm old handler restored." << endl;
+            ASSERT(bsls::Log::logMessageHandler() == oldBslsHandler);
+        }
       } break;
       case 18: {
         // --------------------------------------------------------------------
@@ -2241,7 +2229,7 @@ int main(int argc, char *argv[])
             ASSERT(LINE         == A.lineNumber());
             ASSERT(0            == bsl::strcmp(MESSAGE, A.message()));
 
-            const FieldValues& V = R.userFields();
+            const FieldValues& V = R.customFields();
             ASSERT(0 == V.length());
         }
         ASSERT(0 == NUM_BLOCKS_GLOB_ALLOC);
@@ -2649,15 +2637,12 @@ int main(int argc, char *argv[])
         Obj::DefaultThresholdLevelsCallback
                 thresholdsCallback(&inheritThresholdLevels);
 
-        ball::UserFieldsSchema descriptors;
-        descriptors.appendFieldDescription("n!", ball::UserFieldType::e_INT64);
-
         ball::Logger::UserFieldsPopulatorCallback populator(&myPopulator);
 
         ball::LoggerManagerConfiguration mLMC;
         mLMC.setCategoryNameFilterCallback(nameFilter);
         mLMC.setDefaultThresholdLevelsCallback(thresholdsCallback);
-        mLMC.setUserFieldsSchema(descriptors, populator);
+        mLMC.setUserFieldsPopulatorCallback(populator);
 
         ball::LoggerManagerScopedGuard guard(&testObserver, mLMC);
         Obj& mLM = Obj::singleton();
@@ -3157,10 +3142,6 @@ int main(int argc, char *argv[])
 
             Cnf nameFilter(&toLower);
 
-            ball::UserFieldsSchema descriptors;
-            descriptors.appendFieldDescription("n!",
-                                               ball::UserFieldType::e_INT64);
-
             ball::Logger::UserFieldsPopulatorCallback populator(&myPopulator);
 
             ball::LoggerManagerConfiguration mLMC;
@@ -3171,7 +3152,7 @@ int main(int argc, char *argv[])
             mLMC.setDefaultRecordBufferSizeIfValid(MAX_LIMIT);
 
             mLMC.setCategoryNameFilterCallback(nameFilter);
-            mLMC.setUserFieldsSchema(descriptors, populator);
+            mLMC.setUserFieldsPopulatorCallback(populator);
 
             Obj* mLM_p;
             bslma::ManagedPtr<Obj> mLM_mp;
@@ -3627,15 +3608,12 @@ int main(int argc, char *argv[])
         Obj::DefaultThresholdLevelsCallback
                 thresholdsCallback(&inheritThresholdLevels);
 
-        ball::UserFieldsSchema descriptors;
-        descriptors.appendFieldDescription("n!", ball::UserFieldType::e_INT64);
-
         ball::Logger::UserFieldsPopulatorCallback populator(&myPopulator);
 
         ball::LoggerManagerConfiguration mLMC;
         mLMC.setCategoryNameFilterCallback(nameFilter);
         mLMC.setDefaultThresholdLevelsCallback(thresholdsCallback);
-        mLMC.setUserFieldsSchema(descriptors, populator);
+        mLMC.setUserFieldsPopulatorCallback(populator);
 
         ball::LoggerManagerScopedGuard lmg(&testObserver, mLMC);
         Obj& mLM = Obj::singleton();  const Obj& LM = mLM;
@@ -3951,11 +3929,6 @@ int main(int argc, char *argv[])
                        &simpleThresholdLevels);
             ASSERT(NUM_BLOCKS_DFLT_ALLOC == DA->numBlocksInUse());
 
-            ball::UserFieldsSchema descriptors(OA);
-            descriptors.appendFieldDescription("int", FieldType::e_INT64);
-            descriptors.appendFieldDescription("string", FieldType::e_STRING);
-            ASSERT(NUM_BLOCKS_DFLT_ALLOC == DA->numBlocksInUse());
-
             ball::Logger::UserFieldsPopulatorCallback populator(
                  bsl::allocator_arg_t(),
                  bsl::allocator<ball::Logger::UserFieldsPopulatorCallback>(OA),
@@ -3968,7 +3941,7 @@ int main(int argc, char *argv[])
 
             ball::LoggerManagerConfiguration mLMC(OA);
             mLMC.setDefaultValues(mLMD);
-            mLMC.setUserFieldsSchema(descriptors, populator);
+            mLMC.setUserFieldsPopulatorCallback(populator);
             mLMC.setCategoryNameFilterCallback(nameFilter);
             mLMC.setDefaultThresholdLevelsCallback(thresholdsCallback);
             ASSERT(NUM_BLOCKS_DFLT_ALLOC == DA->numBlocksInUse());
@@ -4037,7 +4010,7 @@ int main(int argc, char *argv[])
             ASSERT(LINE == A.lineNumber());
             ASSERT(0    == bsl::strcmp(MESSAGE, A.message()));
 
-            const FieldValues& V = R.userFields();
+            const FieldValues& V = R.customFields();
             ASSERT(   2 == V.length());
             ASSERT(1066 == V[0].theInt64());
             ASSERT(   0 == bsl::strcmp("XXX", V[1].theString().c_str()));
@@ -4074,12 +4047,8 @@ int main(int argc, char *argv[])
 
         ball::TestObserver testObserver(cout);
 
-        ball::UserFieldsSchema schema;
-        schema.appendFieldDescription("int", FieldType::e_INT64);
-        schema.appendFieldDescription("string", FieldType::e_STRING);
-
         ball::LoggerManagerConfiguration config;
-        config.setUserFieldsSchema(schema, &simplePopulator);
+        config.setUserFieldsPopulatorCallback(&simplePopulator);
 
         Obj::initSingleton(&testObserver, config);
         Obj& mLM = Obj::singleton();
@@ -4134,7 +4103,7 @@ int main(int argc, char *argv[])
         ASSERT(LINE         == A.lineNumber());
         ASSERT(0            == bsl::strcmp(MESSAGE, A.message()));
 
-        const FieldValues& V = R.userFields();
+        const FieldValues& V = R.customFields();
         ASSERT(   2 == V.length());
         ASSERT(1066 == V[0].theInt64());
         ASSERT(   0 == bsl::strcmp("XXX", V[1].theString().c_str()));
@@ -4316,7 +4285,7 @@ int main(int argc, char *argv[])
         ASSERT(LINE         == A.lineNumber());
         ASSERT(0            == bsl::strcmp(MESSAGE, A.message()));
 
-        const FieldValues& V = R.userFields();
+        const FieldValues& V = R.customFields();
         ASSERT(0 == V.length());
 
         ASSERT(1 == Obj::isInitialized());
@@ -4457,7 +4426,7 @@ int main(int argc, char *argv[])
         ASSERT(LINE         == A.lineNumber());
         ASSERT(0            == bsl::strcmp(MESSAGE, A.message()));
 
-        const FieldValues& V = R.userFields();
+        const FieldValues& V = R.customFields();
         ASSERT(0 == V.length());
 
         ASSERT(1 == Obj::isInitialized());
@@ -4489,15 +4458,12 @@ int main(int argc, char *argv[])
         Obj::DefaultThresholdLevelsCallback
                 thresholdsCallback(&inheritThresholdLevels);
 
-        ball::UserFieldsSchema descriptors;
-        descriptors.appendFieldDescription("n!", FieldType::e_INT64);
-
         ball::Logger::UserFieldsPopulatorCallback populator(&myPopulator);
 
         ball::LoggerManagerConfiguration mLMC;
         mLMC.setCategoryNameFilterCallback(nameFilter);
         mLMC.setDefaultThresholdLevelsCallback(thresholdsCallback);
-        mLMC.setUserFieldsSchema(descriptors, populator);
+        mLMC.setUserFieldsPopulatorCallback(populator);
 
         ball::LoggerManagerScopedGuard lmg(&testObserver, mLMC);
         ball::LoggerManager& mLM = Obj::singleton();

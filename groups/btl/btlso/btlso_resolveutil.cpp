@@ -176,9 +176,9 @@ int defaultResolveByNameImp(bsl::vector<btlso::IPv4Address> *hostAddresses,
         return -1;                                                    // RETURN
     }
 
-    // We sometimes get redundant copies of the same address, so we need to
-    // keep them in a hash table to avoid duplicates, then copy from the hash
-    // table to the vector.
+    // We sometimes get redundant copies of the same address, so keep a
+    // hash table to detect and ignore duplicates.  Ensure that values appear
+    // in the vector in the same order they appear in the 'getaddrinfo' list.
 
     bsl::unordered_set<btlso::IPv4Address, IPv4AddressHasher> addressHT;
 
@@ -189,8 +189,8 @@ int defaultResolveByNameImp(bsl::vector<btlso::IPv4Address> *hostAddresses,
             // Since it's 'AF_INET', we know we can cast 'it->ai_addr' (which
             // is a 'struct sockaddr *') to a 'struct sockaddr_in *'.
 
-            struct sockaddr_in *sockAddrIn =
-                           reinterpret_cast<struct sockaddr_in *>(it->ai_addr);
+            struct sockaddr_in *sockAddrIn = static_cast<struct sockaddr_in *>(
+                                             static_cast<void *>(it->ai_addr));
 
             // Note that 's_addr' below is in network byte order; but this is
             // OK because the contract for 'btlso::IPv4Address::setIpAddress'
@@ -199,19 +199,15 @@ int defaultResolveByNameImp(bsl::vector<btlso::IPv4Address> *hostAddresses,
             btlso::IPv4Address address;
             address.setIpAddress(sockAddrIn->sin_addr.s_addr);
 
-            addressHT.insert(address);
+            if (addressHT.insert(address).second) {
+                hostAddresses->push_back(address);
+            }
         }
 
         // AF_INET6, AF_IRDA, AF_BTH, etc. are ignored.
     }
 
     freeaddrinfo(head);
-
-    hostAddresses->reserve(addressHT.size());
-    hostAddresses->insert(hostAddresses->end(),
-                          addressHT.begin(),
-                          addressHT.end());
-
     return 0;
 }
 

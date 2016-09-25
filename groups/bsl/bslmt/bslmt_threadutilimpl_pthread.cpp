@@ -140,7 +140,7 @@ static int initPthreadAttribute(pthread_attr_t                 *destination,
         // Note sometimes PTHREAD_STACK_MIN is a function so cache the call to
         // a variable.
 
-        const int pthreadStackMin = PTHREAD_STACK_MIN;
+        const int pthreadStackMin = static_cast<int>(PTHREAD_STACK_MIN);
         if (stackSize < pthreadStackMin) {
             stackSize = pthreadStackMin;
         }
@@ -259,6 +259,7 @@ int bslmt::ThreadUtilImpl<bslmt::Platform::PosixThreads>::
         pPolicy = SCHED_OTHER;
       }  break;
       default: {
+        pPolicy = SCHED_OTHER;
         BSLS_ASSERT_OPT(0);
       }
     }
@@ -353,6 +354,7 @@ int bslmt::ThreadUtilImpl<bslmt::Platform::PosixThreads>::
         pPolicy = SCHED_OTHER;
       }  break;
       default: {
+        pPolicy = SCHED_OTHER;
         BSLS_ASSERT_OPT(0);
       }
     }

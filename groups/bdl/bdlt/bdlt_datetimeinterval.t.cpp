@@ -131,9 +131,10 @@ using namespace bsl;
 // [17] bool operator> (const DatetimeInterval& lhs, rhs);
 // [17] bool operator>=(const DatetimeInterval& lhs, rhs);
 // [ 5] ostream& operator<<(ostream &os, const DatetimeInterval& object);
+// [21] void hashAppend(HASHALG&, const DatetimeInterval&);
 // ----------------------------------------------------------------------------
 // [ 1] BREATHING TEST
-// [21] USAGE EXAMPLE
+// [22] USAGE EXAMPLE
 // [ 3] TEST APPARATUS
 // [ *] CONCERN: This test driver is reusable w/other, similar components.
 // [ *] CONCERN: In no case does memory come from the global allocator.
@@ -542,7 +543,7 @@ int main(int argc, char *argv[])
     bslma::DefaultAllocatorGuard defaultAllocatorGuard(&defaultAllocator);
 
     switch (test) { case 0:
-      case 21: {
+      case 22: {
         // --------------------------------------------------------------------
         // USAGE EXAMPLE
         //   Extracted from component header file.
@@ -624,6 +625,78 @@ if (veryVerbose)
 //  -2_07:59:56.000
 //..
 
+      } break;
+      case 21: {
+        // --------------------------------------------------------------------
+        // TESTING: hashAppend
+        //
+        // Concerns:
+        //: 1 Hope that different inputs hash differently
+        //: 2 Verify that equal inputs hash identically
+        //: 3 Works for const and non-const values
+        //
+        // Plan:
+        //: 1 Use a table specifying a set of distinct objects, verify that
+        //:   hashes of equivalent objects match and hashes on unequal objects
+        //:   do not.
+        //
+        // Testing:
+        //    void hashAppend(HASHALG&, const DatetimeInterval&);
+        // --------------------------------------------------------------------
+        if (verbose)
+            cout << "\nTESTING 'hashAppend'"
+                 << "\n====================\n";
+
+        typedef ::BloombergLP::bslh::Hash<> Hasher;
+        typedef Hasher::result_type         HashType;
+        Hasher                              hasher;
+
+        static const struct {
+            int   d_line;        // source line number
+            Int64 d_totalMsecs;
+        } DATA[] = {
+            //LINE   TOTAL MILLISECONDS
+            //----   ------------------
+            { L_,                     0 },
+
+            { L_,                     1 },
+            { L_,                 13027 },
+            { L_,               INT_MAX },
+            { L_,           k_MSECS_MAX },
+
+            { L_,                    -1 },
+            { L_,                -42058 },
+            { L_,               INT_MIN },
+            { L_,           k_MSECS_MIN },
+        };
+        const int NUM_DATA = sizeof DATA / sizeof *DATA;
+
+        for (int ti = 0; ti < NUM_DATA; ++ti) {
+            const int   ILINE        = DATA[ti].d_line;
+            const Int64 ITOTAL_MSECS = DATA[ti].d_totalMsecs;
+
+            if (veryVerbose) { T_ P_(ILINE) P(ITOTAL_MSECS) }
+
+            for (int tj = 0; tj < NUM_DATA; ++tj) {
+                const int   JLINE        = DATA[tj].d_line;
+                const Int64 JTOTAL_MSECS = DATA[tj].d_totalMsecs;
+
+                if (veryVerbose) { T_ T_ P_(JLINE) P(JTOTAL_MSECS) }
+
+                Obj mX;  const Obj& X = mX;
+                mX.setTotalMilliseconds(ITOTAL_MSECS);
+
+                Obj mY;  const Obj& Y = mY;
+                mY.setTotalMilliseconds(JTOTAL_MSECS);
+
+                HashType hX = hasher(X);
+                HashType hY = hasher(Y);
+
+                if (veryVerbose) { T_ T_ P_(JLINE) P_(hX) P(hY) }
+
+                LOOP4_ASSERT(ILINE, JLINE, hX, hY, (ti == tj) == (hX == hY));
+            }
+        }
       } break;
       case 20: {
         // --------------------------------------------------------------------
@@ -2631,12 +2704,12 @@ if (veryVerbose)
         const DefaultDataRow (&DATA)[NUM_DATA] = DEFAULT_DATA;
 
         for (int ti = 0; ti < NUM_DATA; ++ti) {
-            const int LINE  = DATA[ti].d_line;
-            const int DAYS  = DATA[ti].d_days;
-            const int HOURS = DATA[ti].d_hours;
-            const int MINS  = DATA[ti].d_mins;
-            const int SECS  = DATA[ti].d_secs;
-            const int MSECS = DATA[ti].d_msecs;
+            const int   LINE  = DATA[ti].d_line;
+            const int   DAYS  = DATA[ti].d_days;
+            const Int64 HOURS = DATA[ti].d_hours;
+            const Int64 MINS  = DATA[ti].d_mins;
+            const Int64 SECS  = DATA[ti].d_secs;
+            const Int64 MSECS = DATA[ti].d_msecs;
 
             const Obj X(DAYS, HOURS, MINS, SECS, MSECS);
 
@@ -4133,11 +4206,11 @@ if (veryVerbose)
         }
         {
             static const struct {
-                int         d_lineNum;       // source line number
-                int         d_milliseconds;  // specification milliseconds
-                int         d_version;       // version to stream with
-                int         d_length;        // expect output length
-                const char *d_fmt_p;         // expected output format
+                int          d_lineNum;       // source line number
+                int          d_milliseconds;  // specification milliseconds
+                int          d_version;       // version to stream with
+                bsl::size_t  d_length;        // expect output length
+                const char  *d_fmt_p;         // expected output format
             } DATA[] = {
                 //LINE  MS      VER  LEN  FORMAT
                 //----  ------  ---  ---  -------------------
@@ -4152,7 +4225,7 @@ if (veryVerbose)
                 const int         LINE         = DATA[i].d_lineNum;
                 const int         MILLISECONDS = DATA[i].d_milliseconds;
                 const int         VERSION      = DATA[i].d_version;
-                const int         LEN          = DATA[i].d_length;
+                const bsl::size_t LEN          = DATA[i].d_length;
                 const char *const FMT          = DATA[i].d_fmt_p;
 
                 // Test using class methods.
@@ -4171,7 +4244,7 @@ if (veryVerbose)
                     if (verbose && memcmp(out.data(), FMT, LEN)) {
                         const char *hex = "0123456789abcdef";
                         P_(LINE);
-                        for (int j = 0; j < out.length(); ++j) {
+                        for (bsl::size_t j = 0; j < out.length(); ++j) {
                             cout << "\\x"
                                  << hex[static_cast<unsigned char>
                                             ((*(out.data() + j) >> 4) & 0x0f)]
@@ -4209,7 +4282,7 @@ if (veryVerbose)
                     if (verbose && memcmp(out.data(), FMT, LEN)) {
                         const char *hex = "0123456789abcdef";
                         P_(LINE);
-                        for (int j = 0; j < out.length(); ++j) {
+                        for (bsl::size_t j = 0; j < out.length(); ++j) {
                             cout << "\\x"
                                  << hex[static_cast<unsigned char>
                                             ((*(out.data() + j) >> 4) & 0x0f)]
@@ -5097,12 +5170,12 @@ if (veryVerbose)
                 "\nVerify all basic accessors report expected values." << endl;
 
         for (int ti = 0; ti < NUM_DATA; ++ti) {
-            const int LINE  = DATA[ti].d_line;
-            const int DAYS  = DATA[ti].d_days;
-            const int HOURS = DATA[ti].d_hours;
-            const int MINS  = DATA[ti].d_mins;
-            const int SECS  = DATA[ti].d_secs;
-            const int MSECS = DATA[ti].d_msecs;
+            const int   LINE  = DATA[ti].d_line;
+            const int   DAYS  = DATA[ti].d_days;
+            const Int64 HOURS = DATA[ti].d_hours;
+            const Int64 MINS  = DATA[ti].d_mins;
+            const Int64 SECS  = DATA[ti].d_secs;
+            const Int64 MSECS = DATA[ti].d_msecs;
 
             const Int64 TOTAL_MSECS =
                                     flds2Msecs(DAYS, HOURS, MINS, SECS, MSECS);

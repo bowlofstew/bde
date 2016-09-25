@@ -38,6 +38,7 @@ BSLS_IDENT_RCSID(balb_performancemonitor_cpp,"$Id$ $CSID$")
 #include <bslma_default.h>
 
 #include <bsls_assert.h>
+#include <bsls_exceptionutil.h>
 #include <bsls_platform.h>
 #include <bsls_timeinterval.h>
 #include <bsls_types.h>
@@ -285,30 +286,37 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsLinux>
         return -1;                                                    // RETURN
     }
 
-    ifs >> stats->d_pid
-        >> stats->d_comm
-        >> stats->d_state
-        >> stats->d_ppid
-        >> stats->d_pgrp
-        >> stats->d_session
-        >> stats->d_tty_nr
-        >> stats->d_tpgid
-        >> stats->d_flags
-        >> stats->d_minflt
-        >> stats->d_cminflt
-        >> stats->d_majflt
-        >> stats->d_cmajflt
-        >> stats->d_utime
-        >> stats->d_stime
-        >> stats->d_cutime
-        >> stats->d_cstime
-        >> stats->d_priority
-        >> stats->d_nice
-        >> stats->d_numThreads
-        >> stats->d_itrealvalue
-        >> stats->d_starttime
-        >> stats->d_vsize
-        >> stats->d_rss;
+    BSLS_TRY {
+        // The following has been observed to throw with some gcc versions
+        // (reportedly 4.1.2 and 4.8.1).  See internal ticket 57176174.
+
+        ifs >> stats->d_pid
+            >> stats->d_comm
+            >> stats->d_state
+            >> stats->d_ppid
+            >> stats->d_pgrp
+            >> stats->d_session
+            >> stats->d_tty_nr
+            >> stats->d_tpgid
+            >> stats->d_flags
+            >> stats->d_minflt
+            >> stats->d_cminflt
+            >> stats->d_majflt
+            >> stats->d_cmajflt
+            >> stats->d_utime
+            >> stats->d_stime
+            >> stats->d_cutime
+            >> stats->d_cstime
+            >> stats->d_priority
+            >> stats->d_nice
+            >> stats->d_numThreads
+            >> stats->d_itrealvalue
+            >> stats->d_starttime
+            >> stats->d_vsize
+            >> stats->d_rss;
+    }
+    BSLS_CATCH (...) {
+    }
 
     return 0;
 }
@@ -366,7 +374,7 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsLinux>
         }
     }
 
-    int jiffiesPerSec = sysconf(_SC_CLK_TCK);
+    long jiffiesPerSec = sysconf(_SC_CLK_TCK);
     bsls::Types::Int64 procStartTime =
                               bootTime + procStats.d_starttime / jiffiesPerSec;
                                                       // seconds since 1970 UTC
@@ -400,7 +408,7 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsLinux>
 
     // Discover the duration of a jiffy.
 
-    static const int clockTicksPerSec = sysconf(_SC_CLK_TCK);
+    static const long clockTicksPerSec = sysconf(_SC_CLK_TCK);
 
     // Discover the number of threads by enumerating the directories in the
     // /proc/<pid>/task directory.
@@ -411,7 +419,9 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsLinux>
     int numThreads = 0;
     int numNodes = scandir(taskFilename.str().c_str(), &entry, 0, 0);
     for (int nodeIndex = 0; nodeIndex < numNodes; ++nodeIndex) {
-        if (DT_DIR == entry[nodeIndex]->d_type) {
+        if (DT_DIR == entry[nodeIndex]->d_type &&
+            bsl::strcmp(".",  entry[nodeIndex]->d_name) != 0 &&
+            bsl::strcmp("..", entry[nodeIndex]->d_name) != 0) {
             ++numThreads;
         }
         bsl::free(entry[nodeIndex]);
@@ -420,19 +430,20 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsLinux>
 
     stats->d_lstData[e_NUM_THREADS] = numThreads;
 
-    static const int pageSize = sysconf(_SC_PAGESIZE);
+    static const long pageSize = sysconf(_SC_PAGESIZE);
 
     stats->d_lstData[e_RESIDENT_SIZE] =
-                        static_cast<double>(procStats.d_rss) * pageSize /
-                        (1024 * 1024);
+                          static_cast<double>(procStats.d_rss)
+                        * static_cast<double>(pageSize)
+                        / (1024 * 1024);
 
     stats->d_lstData[e_VIRTUAL_SIZE] =
                         static_cast<double>(procStats.d_vsize) / (1024 * 1024);
 
     double cpuTimeU = static_cast<double>(procStats.d_utime) /
-                      clockTicksPerSec;
+                      static_cast<double>(clockTicksPerSec);
     double cpuTimeS = static_cast<double>(procStats.d_stime) /
-                      clockTicksPerSec;
+                      static_cast<double>(clockTicksPerSec);
 
     // Calculate CPU utilization
 
@@ -955,8 +966,8 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsUnix>
         return -1;
     }
 
-    stats->d_startTime = bsls::TimeInterval(info.pr_start.tv_sec,
-                                            info.pr_start.tv_nsec);
+    stats->d_startTime = bsls::TimeInterval(
+        info.pr_start.tv_sec, static_cast<int>(info.pr_start.tv_nsec));
 
     close(fd);
 #else
@@ -1052,13 +1063,13 @@ int balb::PerformanceMonitor::Collector<bsls::Platform::OsUnix>
     stats->d_lstData[e_VIRTUAL_SIZE]  =
         static_cast<double>(status.pr_brksize) / (1024 * 1024);
 
-    cpuTimeU = bsls::TimeInterval(static_cast<double>(status.pr_utime.tv_sec),
-                                 static_cast<double>(status.pr_utime.tv_nsec)).
-                                                     totalSecondsAsDouble();
+    cpuTimeU = bsls::TimeInterval(status.pr_utime.tv_sec,
+                                  static_cast<int>(status.pr_utime.tv_nsec))
+                   .totalSecondsAsDouble();
 
-    cpuTimeS = bsls::TimeInterval(static_cast<double>(status.pr_stime.tv_sec),
-                                 static_cast<double>(status.pr_stime.tv_nsec)).
-                                                     totalSecondsAsDouble();
+    cpuTimeS = bsls::TimeInterval(status.pr_stime.tv_sec,
+                                  static_cast<int>(status.pr_stime.tv_nsec))
+                   .totalSecondsAsDouble();
 
     close(fd);
 #else

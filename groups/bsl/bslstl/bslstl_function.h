@@ -40,16 +40,8 @@ BSL_OVERRIDES_STD mode"
 #include <bslscm_version.h>
 #endif
 
-#ifndef INCLUDED_BSLSTL_ALLOCATOR
-#include <bslstl_allocator.h>
-#endif
-
 #ifndef INCLUDED_BSLSTL_PAIR
 #include <bslstl_pair.h>
-#endif
-
-#ifndef INCLUDED_BSLALG_SCALARPRIMITIVES
-#include <bslalg_scalarprimitives.h>
 #endif
 
 #ifndef INCLUDED_BSLMA_ALLOCATOR
@@ -60,8 +52,24 @@ BSL_OVERRIDES_STD mode"
 #include <bslma_allocatoradaptor.h>
 #endif
 
+#ifndef INCLUDED_BSLMA_CONSTRUCTIONUTIL
+#include <bslma_constructionutil.h>
+#endif
+
 #ifndef INCLUDED_BSLMA_DEFAULT
 #include <bslma_default.h>
+#endif
+
+#ifndef INCLUDED_BSLMA_DESTRUCTIONUTIL
+#include <bslma_destructionutil.h>
+#endif
+
+#ifndef INCLUDED_BSLMA_STDALLOCATOR
+#include <bslma_stdallocator.h>
+#endif
+
+#ifndef INCLUDED_BSLMA_USESBSLMAALLOCATOR
+#include <bslma_usesbslmaallocator.h>
 #endif
 
 #ifndef INCLUDED_BSLMF_ADDLVALUEREFERENCE
@@ -90,6 +98,10 @@ BSL_OVERRIDES_STD mode"
 
 #ifndef INCLUDED_BSLMF_FUNCTIONPOINTERTRAITS
 #include <bslmf_functionpointertraits.h>
+#endif
+
+#ifndef INCLUDED_BSLMF_ISBITWISEMOVEABLE
+#include <bslmf_isbitwisemoveable.h>
 #endif
 
 #ifndef INCLUDED_BSLMF_ISEMPTY
@@ -132,6 +144,10 @@ BSL_OVERRIDES_STD mode"
 #include <bslmf_selecttrait.h>
 #endif
 
+#ifndef INCLUDED_BSLMF_USESALLOCATORARGT
+#include <bslmf_usesallocatorargt.h>
+#endif
+
 #ifndef INCLUDED_BSLS_ALIGNMENTUTIL
 #include <bsls_alignmentutil.h>
 #endif
@@ -160,6 +176,11 @@ BSL_OVERRIDES_STD mode"
 #include <bsls_unspecifiedbool.h>
 #endif
 
+#ifndef INCLUDED_CSTDLIB
+#include <cstdlib>
+#define INCLUDED_CSTDLIB
+#endif
+
 #ifndef INCLUDED_TYPEINFO
 #include <typeinfo>
 #define INCLUDED_TYPEINFO
@@ -180,6 +201,7 @@ BSL_OVERRIDES_STD mode"
 #define INCLUDED_STDLIB_H
 #endif
 
+
 namespace bsl {
 
 // Forward declarations
@@ -197,6 +219,55 @@ struct Function_ArgTypes;
 
 template <class FUNC>
 struct Function_NothrowWrapperUtil;
+
+                // ===============================================
+                // class template Function_DisableIfLosslessCnvrsn
+                // ===============================================
+
+template <class FROM_TYPE, class TO_TYPE, class RESULT_TYPE>
+struct Function_DisableIfLosslessCnvrsn
+    : enable_if<! is_same<FROM_TYPE, TO_TYPE>::value, RESULT_TYPE>
+{
+    // This metafunction defines a 'type' aliased to the specified
+    // 'RESULT_TYPE' parameter if the specified 'FROM_TYPE' parameter type is
+    // *not* convertible to the specified 'TO_TYPE' parameter type with no loss
+    // of information; otherwise, no 'type' member is defined.  By default,
+    // this metafunction always yields a 'type' member if, after stripping off
+    // any reference and/or 'const' qualifier from 'FROM_TYPE', it is different
+    // from 'TO_TYPE'.  However, this template can be specialized to suppress
+    // 'type' for other parameters that supply lossless conversions. This
+    // metafunction is used to prevent types that provide lossless conversions
+    // to 'bsl::function' from matching template parameters in 'function'
+    // constructors and assignment operators, prefering, instead, the
+    // non-template overloads.
+};
+
+template <class FROM_TYPE, class TO_TYPE, class RESULT_TYPE>
+struct Function_DisableIfLosslessCnvrsn<const FROM_TYPE, TO_TYPE, RESULT_TYPE>
+    : Function_DisableIfLosslessCnvrsn<FROM_TYPE, TO_TYPE, RESULT_TYPE>
+{
+    // Specialization of 'Function_DisableIfLosslessCnvrsn' for 'FROM_TYPE'
+    // being const.
+};
+
+template <class FROM_TYPE, class TO_TYPE, class RESULT_TYPE>
+struct Function_DisableIfLosslessCnvrsn<FROM_TYPE&, TO_TYPE, RESULT_TYPE>
+    : Function_DisableIfLosslessCnvrsn<FROM_TYPE, TO_TYPE, RESULT_TYPE>
+{
+    // Specialization of 'Function_DisableIfLosslessCnvrsn' for 'FROM_TYPE'
+    // being an lvalue reference.
+};
+
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+template <class FROM_TYPE, class TO_TYPE, class RESULT_TYPE>
+struct Function_DisableIfLosslessCnvrsn<FROM_TYPE&&, TO_TYPE, RESULT_TYPE>
+    : Function_DisableIfLosslessCnvrsn<FROM_TYPE, TO_TYPE, RESULT_TYPE>
+{
+    // Specialization of 'Function_DisableIfLosslessCnvrsn' for 'FROM_TYPE'
+    // being an rvalue reference.
+};
+#endif // BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+
 
                         // =======================
                         // class bad_function_call
@@ -234,7 +305,7 @@ class Function_NothrowWrapper
     // 'bsl::function' as though it were a function object with a 'noexcept'
     // move constructor (even though it does not have the interface of a
     // function object).  This wrapper is especially useful in C++03 mode,
-    // where 'noexcept' does not exist, it that even non-throwing operations
+    // where 'noexcept' does not exist, so even non-throwing operations
     // are assumed to throw unless they delcare the bitwise movable trait.
     // Note that, in the unlikely event that moving the wrapped object *does*
     // throw at runtime, the result will likely be a call to 'terminate()'.
@@ -354,22 +425,31 @@ class Function_SmallObjectOptimization {
             // in c++11 mode.
 #endif
 
-        static const std::size_t VALUE =
-            sizeof(TP) > sizeof(InplaceBuffer)                ? sizeof(TP) :
-            BloombergLP::bslmf::IsBitwiseMoveable<TP>::value  ? sizeof(TP) :
-            Function_NothrowWrapperUtil<TP>::IS_WRAPPED       ? sizeof(TP) :
+        static const bool k_AVOID_SOO =
+            sizeof(TP) > sizeof(InplaceBuffer)                ? false :
+            BloombergLP::bslmf::IsBitwiseMoveable<TP>::value  ? false :
+            Function_NothrowWrapperUtil<TP>::IS_WRAPPED       ? false :
 #if    defined(BSLS_COMPILERFEATURES_SUPPORT_NOEXCEPT)           \
     && defined(BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES)
             // Check if nothrow move constructible.  The use of '::new' lets
             // us check the constructor without also checking the destructor.
             // This is especially important in gcc 4.7 and before because
             // destructors are not implicitly 'noexcept' in those compilers.
-            noexcept(::new((void*) 0) TP(myDeclVal<TP>())) ? sizeof(TP) :
+            noexcept(::new((void*) 0) TP(myDeclVal<TP>())) ? false :
 #endif
             // If not nonthrow or bitwise moveable, then add
             // 'k_NON_SOO_SMALL_SIZE' to the size indicate that we should not
             // use the small object optimization for this type.
-            sizeof(TP) + k_NON_SOO_SMALL_SIZE;
+            true;
+
+        // The actual calculation of 'VALUE' is separated from the logic that
+        // determines whether or not we should use small object optimization.
+        // This prevents the compiler from assembling the intermediate value
+        // 'sizeof(TP) + k_NON_SOO_SMALL_SIZE', which will be thrown away when
+        // 'false == k_AVOID_SOO' but may cause overflow warnings nonetheless.
+
+        static const std::size_t VALUE =
+                         sizeof(TP) + (k_AVOID_SOO ? k_NON_SOO_SMALL_SIZE : 0);
     };
 
     template <class FN>
@@ -583,7 +663,7 @@ class Function_Rep {
                  const ALLOC&                          alloc,
                  integral_constant<AllocCategory, ATP> atp);
 
-    void assign(Function_Rep *from, ManagerOpCode moveOrCopy);
+    void assignRep(ManagerOpCode moveOrCopy, Function_Rep *from);
         // Move or copy the value of the specified '*from' object into
         // '*this', depending on the the value of the specified 'moveOrCopy'
         // argument.  The previous value of '*this' is discarded.  The
@@ -669,7 +749,7 @@ class Function_Rep {
     Allocator *allocator() const;
 };
 
-#if !BSLS_COMPILERFEATURES_SIMULATE_CPP11_FEATURES // $var-args=14
+#if !BSLS_COMPILERFEATURES_SIMULATE_CPP11_FEATURES // $var-args=10
 
                     // =======================
                     // class template function
@@ -700,6 +780,20 @@ class function<RET(ARGS...)> :
 
     Invoker *invoker() const;
         // Return the current invoker.
+
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+        // Initialize this object to wrap the specified '*func' target
+        // invocable, using the specified 'alloc' allocator. The '*func'
+        // object is moved-from.
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+        // Move or copy the specified '*func' into the invocable target of
+        // '*this', depending on the value of 'moveOrCopy'. The previous
+        // target is discarded. The behavior is undefined unless 'moveOrCopy'
+        // is either 'e_MOVE_CONSTRUCT' or 'e_COPY_CONSTRUCT'. Note that, for
+        // the copy case, 'FUNC' might be a 'const'-qualified type.
 
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
@@ -849,7 +943,14 @@ class function<RET(ARGS...)> :
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        // Must be in-place inline because the use of 'DisableIf' will
+        // otherwise break the MSVC 2010 compiler.
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -858,27 +959,43 @@ class function<RET(ARGS...)> :
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        // Must be in-place inline because the use of 'DisableIf' will
+        // otherwise break the MSVC 2010 compiler.
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     // MANIPULATORS
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-        // Copy constructor.  Needed to overload in preference to
-        // 'operator=(FUNC&&)'.
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(FUNC&&);
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(FUNC&& func)
+    {
+        // Must be in-place inline because the use of 'DisableIf' will
+        // otherwise break the MSVC 2010 compiler.
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<FUNC&&>::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
     // TBD: Need to implement reference_wrapper.
@@ -905,6 +1022,7 @@ class function<RET(ARGS...)> :
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -941,6 +1059,12 @@ class function<RET()> :
     void setInvoker(Invoker *p);
 
     Invoker *invoker() const;
+
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
 
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
@@ -1050,7 +1174,12 @@ class function<RET()> :
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1059,24 +1188,39 @@ class function<RET()> :
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -1093,6 +1237,7 @@ class function<RET()> :
     }
 #endif
 
+
 };
 
 template <class RET, class ARGS_01>
@@ -1107,6 +1252,12 @@ class function<RET(ARGS_01)> :
     void setInvoker(Invoker *p);
 
     Invoker *invoker() const;
+
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
 
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
@@ -1220,7 +1371,12 @@ class function<RET(ARGS_01)> :
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1229,24 +1385,39 @@ class function<RET(ARGS_01)> :
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -1262,6 +1433,7 @@ class function<RET(ARGS_01)> :
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -1282,6 +1454,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -1398,7 +1576,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1407,24 +1590,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -1441,6 +1639,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -1465,6 +1664,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -1585,7 +1790,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1594,24 +1804,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -1629,6 +1854,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -1657,6 +1883,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -1781,7 +2013,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1790,24 +2027,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -1826,6 +2078,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -1858,6 +2111,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -1986,7 +2245,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -1995,24 +2259,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -2032,6 +2311,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -2068,6 +2348,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -2200,7 +2486,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -2209,24 +2500,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -2247,6 +2553,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -2287,6 +2594,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -2423,7 +2736,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -2432,24 +2750,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -2471,6 +2804,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -2515,6 +2849,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -2655,7 +2995,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -2664,24 +3009,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -2704,6 +3064,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -2752,6 +3113,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -2896,7 +3263,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -2905,24 +3277,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -2946,6 +3333,7 @@ class function<RET(ARGS_01,
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -2998,6 +3386,12 @@ class function<RET(ARGS_01,
 
     Invoker *invoker() const;
 
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
+
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
                                    BloombergLP::bslmf::SelectTraitCase<
@@ -3146,7 +3540,12 @@ class function<RET(ARGS_01,
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -3155,24 +3554,39 @@ class function<RET(ARGS_01,
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
+                                     >::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -3198,1099 +3612,6 @@ class function<RET(ARGS_01,
     }
 #endif
 
-};
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-class function<RET(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11)> :
-        public Function_ArgTypes<RET(ARGS_01,
-                                     ARGS_02,
-                                     ARGS_03,
-                                     ARGS_04,
-                                     ARGS_05,
-                                     ARGS_06,
-                                     ARGS_07,
-                                     ARGS_08,
-                                     ARGS_09,
-                                     ARGS_10,
-                                     ARGS_11)>,
-        public Function_Rep
-{
-
-    typedef RET Invoker(const Function_Rep* rep,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11);
-
-    void setInvoker(Invoker *p);
-
-    Invoker *invoker() const;
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                                   BloombergLP::bslmf::SelectTraitCase<
-                                       BloombergLP::bslmf::IsFunctionPointer>)
-    {
-        if (f) {
-            return &functionPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                              BloombergLP::bslmf::SelectTraitCase<
-                                  BloombergLP::bslmf::IsMemberFunctionPointer>)
-    {
-        if (f) {
-            return &memFuncPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                       BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>)
-    {
-        return &inplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                                   BloombergLP::bslmf::SelectTraitCase<>)
-    {
-        return &outofplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f)
-    {
-        typedef Function_SmallObjectOptimization Soo;
-
-        typedef typename
-            Function_NothrowWrapperUtil<FUNC>::UnwrappedType UwFuncType;
-
-        typedef typename
-            BloombergLP::bslmf::SelectTrait<
-                UwFuncType,
-                BloombergLP::bslmf::IsFunctionPointer,
-                BloombergLP::bslmf::IsMemberFunctionPointer,
-                Soo::IsInplaceFunc
-            >::Type UwFuncSelection;
-
-        const std::size_t kSOOSIZE       = Soo::SooFuncSize<FUNC>::VALUE;
-        const std::size_t kUNWRAPPED_SOOSIZE
-                                         = Soo::SooFuncSize<UwFuncType>::VALUE;
-
-        typedef typename
-            bsl::conditional<kSOOSIZE != kUNWRAPPED_SOOSIZE,
-            BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>,
-            UwFuncSelection>::type FuncSelection;
-
-        return invokerForFunc(Function_NothrowWrapperUtil<FUNC>::unwrap(f),
-                FuncSelection());
-    }
-
-    template <class FUNC>
-    static RET functionPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type);
-
-    template <class FUNC>
-    static RET memFuncPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type);
-
-    template <class FUNC>
-    static RET inplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type);
-
-    template <class FUNC>
-    static RET outofplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type);
-
-#ifndef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-
-    typedef BloombergLP::bsls::UnspecifiedBool<function>  UnspecifiedBoolUtil;
-    typedef typename UnspecifiedBoolUtil::BoolType        UnspecifiedBool;
-
-    bool operator==(const function&) const;
-    bool operator!=(const function&) const;
-#endif
-
-  public:
-    typedef RET result_type;
-
-    function() BSLS_NOTHROW_SPEC;
-    function(nullptr_t) BSLS_NOTHROW_SPEC;
-    function(const function& other);
-    template<class FUNC> function(FUNC func);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
-                                   nullptr_t);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC&    alloc,
-                                   const function& other);
-    template<class FUNC, class ALLOC> function(allocator_arg_t,
-                                               const ALLOC& alloc,
-                                               FUNC         func);
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
-
-    ~function();
-
-    function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
-    template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
-    function& operator=(nullptr_t);
-
-
-
-    RET operator()(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11) const;
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-    explicit
-    operator bool() const BSLS_NOTHROW_SPEC;
-#else
-    operator UnspecifiedBool() const BSLS_NOTHROW_SPEC
-    {
-        return UnspecifiedBoolUtil::makeValue(invoker());
-    }
-#endif
-
-};
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-class function<RET(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12)> :
-        public Function_ArgTypes<RET(ARGS_01,
-                                     ARGS_02,
-                                     ARGS_03,
-                                     ARGS_04,
-                                     ARGS_05,
-                                     ARGS_06,
-                                     ARGS_07,
-                                     ARGS_08,
-                                     ARGS_09,
-                                     ARGS_10,
-                                     ARGS_11,
-                                     ARGS_12)>,
-        public Function_Rep
-{
-
-    typedef RET Invoker(const Function_Rep* rep,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12);
-
-    void setInvoker(Invoker *p);
-
-    Invoker *invoker() const;
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                                   BloombergLP::bslmf::SelectTraitCase<
-                                       BloombergLP::bslmf::IsFunctionPointer>)
-    {
-        if (f) {
-            return &functionPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                              BloombergLP::bslmf::SelectTraitCase<
-                                  BloombergLP::bslmf::IsMemberFunctionPointer>)
-    {
-        if (f) {
-            return &memFuncPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                       BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>)
-    {
-        return &inplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                                   BloombergLP::bslmf::SelectTraitCase<>)
-    {
-        return &outofplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f)
-    {
-        typedef Function_SmallObjectOptimization Soo;
-
-        typedef typename
-            Function_NothrowWrapperUtil<FUNC>::UnwrappedType UwFuncType;
-
-        typedef typename
-            BloombergLP::bslmf::SelectTrait<
-                UwFuncType,
-                BloombergLP::bslmf::IsFunctionPointer,
-                BloombergLP::bslmf::IsMemberFunctionPointer,
-                Soo::IsInplaceFunc
-            >::Type UwFuncSelection;
-
-        const std::size_t kSOOSIZE       = Soo::SooFuncSize<FUNC>::VALUE;
-        const std::size_t kUNWRAPPED_SOOSIZE
-                                         = Soo::SooFuncSize<UwFuncType>::VALUE;
-
-        typedef typename
-            bsl::conditional<kSOOSIZE != kUNWRAPPED_SOOSIZE,
-            BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>,
-            UwFuncSelection>::type FuncSelection;
-
-        return invokerForFunc(Function_NothrowWrapperUtil<FUNC>::unwrap(f),
-                FuncSelection());
-    }
-
-    template <class FUNC>
-    static RET functionPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type);
-
-    template <class FUNC>
-    static RET memFuncPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type);
-
-    template <class FUNC>
-    static RET inplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type);
-
-    template <class FUNC>
-    static RET outofplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type);
-
-#ifndef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-
-    typedef BloombergLP::bsls::UnspecifiedBool<function>  UnspecifiedBoolUtil;
-    typedef typename UnspecifiedBoolUtil::BoolType        UnspecifiedBool;
-
-    bool operator==(const function&) const;
-    bool operator!=(const function&) const;
-#endif
-
-  public:
-    typedef RET result_type;
-
-    function() BSLS_NOTHROW_SPEC;
-    function(nullptr_t) BSLS_NOTHROW_SPEC;
-    function(const function& other);
-    template<class FUNC> function(FUNC func);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
-                                   nullptr_t);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC&    alloc,
-                                   const function& other);
-    template<class FUNC, class ALLOC> function(allocator_arg_t,
-                                               const ALLOC& alloc,
-                                               FUNC         func);
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
-
-    ~function();
-
-    function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
-    template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
-    function& operator=(nullptr_t);
-
-
-
-    RET operator()(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12) const;
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-    explicit
-    operator bool() const BSLS_NOTHROW_SPEC;
-#else
-    operator UnspecifiedBool() const BSLS_NOTHROW_SPEC
-    {
-        return UnspecifiedBoolUtil::makeValue(invoker());
-    }
-#endif
-
-};
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-class function<RET(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12,
-                   ARGS_13)> :
-        public Function_ArgTypes<RET(ARGS_01,
-                                     ARGS_02,
-                                     ARGS_03,
-                                     ARGS_04,
-                                     ARGS_05,
-                                     ARGS_06,
-                                     ARGS_07,
-                                     ARGS_08,
-                                     ARGS_09,
-                                     ARGS_10,
-                                     ARGS_11,
-                                     ARGS_12,
-                                     ARGS_13)>,
-        public Function_Rep
-{
-
-    typedef RET Invoker(const Function_Rep* rep,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13);
-
-    void setInvoker(Invoker *p);
-
-    Invoker *invoker() const;
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                                   BloombergLP::bslmf::SelectTraitCase<
-                                       BloombergLP::bslmf::IsFunctionPointer>)
-    {
-        if (f) {
-            return &functionPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                              BloombergLP::bslmf::SelectTraitCase<
-                                  BloombergLP::bslmf::IsMemberFunctionPointer>)
-    {
-        if (f) {
-            return &memFuncPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                       BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>)
-    {
-        return &inplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                                   BloombergLP::bslmf::SelectTraitCase<>)
-    {
-        return &outofplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f)
-    {
-        typedef Function_SmallObjectOptimization Soo;
-
-        typedef typename
-            Function_NothrowWrapperUtil<FUNC>::UnwrappedType UwFuncType;
-
-        typedef typename
-            BloombergLP::bslmf::SelectTrait<
-                UwFuncType,
-                BloombergLP::bslmf::IsFunctionPointer,
-                BloombergLP::bslmf::IsMemberFunctionPointer,
-                Soo::IsInplaceFunc
-            >::Type UwFuncSelection;
-
-        const std::size_t kSOOSIZE       = Soo::SooFuncSize<FUNC>::VALUE;
-        const std::size_t kUNWRAPPED_SOOSIZE
-                                         = Soo::SooFuncSize<UwFuncType>::VALUE;
-
-        typedef typename
-            bsl::conditional<kSOOSIZE != kUNWRAPPED_SOOSIZE,
-            BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>,
-            UwFuncSelection>::type FuncSelection;
-
-        return invokerForFunc(Function_NothrowWrapperUtil<FUNC>::unwrap(f),
-                FuncSelection());
-    }
-
-    template <class FUNC>
-    static RET functionPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type);
-
-    template <class FUNC>
-    static RET memFuncPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type);
-
-    template <class FUNC>
-    static RET inplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type);
-
-    template <class FUNC>
-    static RET outofplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type);
-
-#ifndef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-
-    typedef BloombergLP::bsls::UnspecifiedBool<function>  UnspecifiedBoolUtil;
-    typedef typename UnspecifiedBoolUtil::BoolType        UnspecifiedBool;
-
-    bool operator==(const function&) const;
-    bool operator!=(const function&) const;
-#endif
-
-  public:
-    typedef RET result_type;
-
-    function() BSLS_NOTHROW_SPEC;
-    function(nullptr_t) BSLS_NOTHROW_SPEC;
-    function(const function& other);
-    template<class FUNC> function(FUNC func);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
-                                   nullptr_t);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC&    alloc,
-                                   const function& other);
-    template<class FUNC, class ALLOC> function(allocator_arg_t,
-                                               const ALLOC& alloc,
-                                               FUNC         func);
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
-
-    ~function();
-
-    function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
-    template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
-    function& operator=(nullptr_t);
-
-
-
-    RET operator()(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12,
-                   ARGS_13) const;
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-    explicit
-    operator bool() const BSLS_NOTHROW_SPEC;
-#else
-    operator UnspecifiedBool() const BSLS_NOTHROW_SPEC
-    {
-        return UnspecifiedBoolUtil::makeValue(invoker());
-    }
-#endif
-
-};
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-class function<RET(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12,
-                   ARGS_13,
-                   ARGS_14)> :
-        public Function_ArgTypes<RET(ARGS_01,
-                                     ARGS_02,
-                                     ARGS_03,
-                                     ARGS_04,
-                                     ARGS_05,
-                                     ARGS_06,
-                                     ARGS_07,
-                                     ARGS_08,
-                                     ARGS_09,
-                                     ARGS_10,
-                                     ARGS_11,
-                                     ARGS_12,
-                                     ARGS_13,
-                                     ARGS_14)>,
-        public Function_Rep
-{
-
-    typedef RET Invoker(const Function_Rep* rep,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14);
-
-    void setInvoker(Invoker *p);
-
-    Invoker *invoker() const;
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                                   BloombergLP::bslmf::SelectTraitCase<
-                                       BloombergLP::bslmf::IsFunctionPointer>)
-    {
-        if (f) {
-            return &functionPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f,
-                              BloombergLP::bslmf::SelectTraitCase<
-                                  BloombergLP::bslmf::IsMemberFunctionPointer>)
-    {
-        if (f) {
-            return &memFuncPtrInvoker<FUNC>;
-        }
-        else {
-#if BSLS_PLATFORM_CMP_GNU              &&                                     \
-    BSLS_PLATFORM_CMP_VERSION <= 40305 &&                                     \
-    BSLS_PLATFORM_CPU_64_BIT           &&                                     \
-    __GNUC_GNU_INLINE__
-            Function_Rep::nothing(f);
-#endif
-            return NULL;
-        }
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                       BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>)
-    {
-        return &inplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC&,
-                                   BloombergLP::bslmf::SelectTraitCase<>)
-    {
-        return &outofplaceFunctorInvoker<FUNC>;
-    }
-
-    template <class FUNC>
-    static Invoker *invokerForFunc(const FUNC& f)
-    {
-        typedef Function_SmallObjectOptimization Soo;
-
-        typedef typename
-            Function_NothrowWrapperUtil<FUNC>::UnwrappedType UwFuncType;
-
-        typedef typename
-            BloombergLP::bslmf::SelectTrait<
-                UwFuncType,
-                BloombergLP::bslmf::IsFunctionPointer,
-                BloombergLP::bslmf::IsMemberFunctionPointer,
-                Soo::IsInplaceFunc
-            >::Type UwFuncSelection;
-
-        const std::size_t kSOOSIZE       = Soo::SooFuncSize<FUNC>::VALUE;
-        const std::size_t kUNWRAPPED_SOOSIZE
-                                         = Soo::SooFuncSize<UwFuncType>::VALUE;
-
-        typedef typename
-            bsl::conditional<kSOOSIZE != kUNWRAPPED_SOOSIZE,
-            BloombergLP::bslmf::SelectTraitCase<Soo::IsInplaceFunc>,
-            UwFuncSelection>::type FuncSelection;
-
-        return invokerForFunc(Function_NothrowWrapperUtil<FUNC>::unwrap(f),
-                FuncSelection());
-    }
-
-    template <class FUNC>
-    static RET functionPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type);
-
-    template <class FUNC>
-    static RET memFuncPtrInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type);
-
-    template <class FUNC>
-    static RET inplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type);
-
-    template <class FUNC>
-    static RET outofplaceFunctorInvoker(const Function_Rep *rep,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type,
-                   typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type);
-
-#ifndef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-
-    typedef BloombergLP::bsls::UnspecifiedBool<function>  UnspecifiedBoolUtil;
-    typedef typename UnspecifiedBoolUtil::BoolType        UnspecifiedBool;
-
-    bool operator==(const function&) const;
-    bool operator!=(const function&) const;
-#endif
-
-  public:
-    typedef RET result_type;
-
-    function() BSLS_NOTHROW_SPEC;
-    function(nullptr_t) BSLS_NOTHROW_SPEC;
-    function(const function& other);
-    template<class FUNC> function(FUNC func);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
-    template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
-                                   nullptr_t);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC&    alloc,
-                                   const function& other);
-    template<class FUNC, class ALLOC> function(allocator_arg_t,
-                                               const ALLOC& alloc,
-                                               FUNC         func);
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
-
-    ~function();
-
-    function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
-    template<class FUNC>
-    function& operator=(BSLS_COMPILERFEATURES_FORWARD_REF(FUNC));
-    function& operator=(nullptr_t);
-
-
-
-    RET operator()(ARGS_01,
-                   ARGS_02,
-                   ARGS_03,
-                   ARGS_04,
-                   ARGS_05,
-                   ARGS_06,
-                   ARGS_07,
-                   ARGS_08,
-                   ARGS_09,
-                   ARGS_10,
-                   ARGS_11,
-                   ARGS_12,
-                   ARGS_13,
-                   ARGS_14) const;
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
-    explicit
-    operator bool() const BSLS_NOTHROW_SPEC;
-#else
-    operator UnspecifiedBool() const BSLS_NOTHROW_SPEC
-    {
-        return UnspecifiedBoolUtil::makeValue(invoker());
-    }
-#endif
 
 };
 
@@ -4418,110 +3739,6 @@ bool operator==(const function<RET(ARGS_01,
                                    ARGS_09,
                                    ARGS_10)>&, nullptr_t) BSLS_NOTHROW_SPEC;
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-bool operator==(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-bool operator==(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-bool operator==(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12,
-                                   ARGS_13)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-bool operator==(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12,
-                                   ARGS_13,
-                                   ARGS_14)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
 
 template <class RET>
 bool operator==(nullptr_t, const function<RET()>&) BSLS_NOTHROW_SPEC;
@@ -4645,110 +3862,6 @@ bool operator==(nullptr_t, const function<RET(ARGS_01,
                                               ARGS_08,
                                               ARGS_09,
                                               ARGS_10)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-bool operator==(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-bool operator==(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-bool operator==(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12,
-                                              ARGS_13)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-bool operator==(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12,
-                                              ARGS_13,
-                                              ARGS_14)>&) BSLS_NOTHROW_SPEC;
 
 
 template <class RET>
@@ -4874,110 +3987,6 @@ bool operator!=(const function<RET(ARGS_01,
                                    ARGS_09,
                                    ARGS_10)>&, nullptr_t) BSLS_NOTHROW_SPEC;
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-bool operator!=(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-bool operator!=(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-bool operator!=(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12,
-                                   ARGS_13)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-bool operator!=(const function<RET(ARGS_01,
-                                   ARGS_02,
-                                   ARGS_03,
-                                   ARGS_04,
-                                   ARGS_05,
-                                   ARGS_06,
-                                   ARGS_07,
-                                   ARGS_08,
-                                   ARGS_09,
-                                   ARGS_10,
-                                   ARGS_11,
-                                   ARGS_12,
-                                   ARGS_13,
-                                   ARGS_14)>&, nullptr_t) BSLS_NOTHROW_SPEC;
-
 
 template <class RET>
 bool operator!=(nullptr_t, const function<RET()>&) BSLS_NOTHROW_SPEC;
@@ -5101,110 +4110,6 @@ bool operator!=(nullptr_t, const function<RET(ARGS_01,
                                               ARGS_08,
                                               ARGS_09,
                                               ARGS_10)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-bool operator!=(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-bool operator!=(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-bool operator!=(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12,
-                                              ARGS_13)>&) BSLS_NOTHROW_SPEC;
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-bool operator!=(nullptr_t, const function<RET(ARGS_01,
-                                              ARGS_02,
-                                              ARGS_03,
-                                              ARGS_04,
-                                              ARGS_05,
-                                              ARGS_06,
-                                              ARGS_07,
-                                              ARGS_08,
-                                              ARGS_09,
-                                              ARGS_10,
-                                              ARGS_11,
-                                              ARGS_12,
-                                              ARGS_13,
-                                              ARGS_14)>&) BSLS_NOTHROW_SPEC;
 
 
 template <class RET>
@@ -5375,156 +4280,6 @@ void swap(function<RET(ARGS_01,
                                                   ARGS_09,
                                                   ARGS_10)>& b);
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-void swap(function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11)>& a, function<RET(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11)>& b);
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-void swap(function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12)>& a, function<RET(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12)>& b);
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-void swap(function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12,
-                       ARGS_13)>& a, function<RET(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13)>& b);
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-void swap(function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12,
-                       ARGS_13,
-                       ARGS_14)>& a, function<RET(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13,
-                                                  ARGS_14)>& b);
-
 #else
 // The generated code below is a workaround for the absence of perfect
 // forwarding in some compilers.
@@ -5542,6 +4297,12 @@ class function<RET(ARGS...)> :
     void setInvoker(Invoker *p);
 
     Invoker *invoker() const;
+
+    template<class FUNC, class ALLOC>
+    void initFromTarget(FUNC *func, const ALLOC& alloc);
+
+    template<class FUNC>
+    void assignTarget(ManagerOpCode moveOrCopy, FUNC *func);
 
     template <class FUNC>
     static Invoker *invokerForFunc(const FUNC& f,
@@ -5655,7 +4416,12 @@ class function<RET(ARGS...)> :
     function() BSLS_NOTHROW_SPEC;
     function(nullptr_t) BSLS_NOTHROW_SPEC;
     function(const function& other);
-    template<class FUNC> function(FUNC func);
+    template<class FUNC> function(FUNC func,
+       typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, BloombergLP::bslma::Default::defaultAllocator());
+    }
+
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc);
     template<class ALLOC> function(allocator_arg_t, const ALLOC& alloc,
                                    nullptr_t);
@@ -5664,24 +4430,38 @@ class function<RET(ARGS...)> :
                                    const function& other);
     template<class FUNC, class ALLOC> function(allocator_arg_t,
                                                const ALLOC& alloc,
-                                               FUNC         func);
+                                               FUNC         func,
+        typename Function_DisableIfLosslessCnvrsn<FUNC,function,int>::type = 0)
+    {
+        initFromTarget(&func, alloc);
+    }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function(function&& other);
-    template<class ALLOC> function(allocator_arg_t,
-                                   const ALLOC& alloc,
-                                   function&&   other);
-#endif
+    function(BloombergLP::bslmf::MovableRef<function> other);
+    template<class ALLOC>
+    function(allocator_arg_t,
+             const ALLOC&                             alloc,
+             BloombergLP::bslmf::MovableRef<function> other);
 
     ~function();
 
     function& operator=(const function&);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-    function& operator=(function&);
-    function& operator=(function&&);
-#endif
+    function& operator=(BloombergLP::bslmf::MovableRef<function>);
     template<class FUNC>
-    function& operator=(FUNC&&);
+    typename Function_DisableIfLosslessCnvrsn<FUNC, function, function&>::type
+        operator=(FUNC&& func)
+    {
+#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
+        if (bsl::is_rvalue_reference<FUNC&&>::value) {
+            assignTarget(e_MOVE_CONSTRUCT, &func);
+        }
+        else
+#endif
+        {
+            assignTarget(e_COPY_CONSTRUCT, &func);
+        }
+        return *this;
+    }
+
     function& operator=(nullptr_t);
 
 
@@ -5697,6 +4477,7 @@ class function<RET(ARGS...)> :
         return UnspecifiedBoolUtil::makeValue(invoker());
     }
 #endif
+
 
 };
 
@@ -5717,6 +4498,15 @@ void swap(function<RET(ARGS...)>& a, function<RET(ARGS...)>& b);
 
 // }}} END GENERATED CODE
 #endif
+
+
+
+#ifndef BSLS_PLATFORM_CMP_SUN
+#define BSLSTL_FUNCTION_CAST_RESULT(X) static_cast<RET>(X)
+#else
+#define BSLSTL_FUNCTION_CAST_RESULT(X) (RET)(X)
+#endif
+
 
 // ============================================================================
 //                TEMPLATE AND INLINE FUNCTION IMPLEMENTATIONS
@@ -5908,10 +4698,6 @@ template <class FUNC,
           class ARGS_7 = BSLS_COMPILERFEATURES_NILT,
           class ARGS_8 = BSLS_COMPILERFEATURES_NILT,
           class ARGS_9 = BSLS_COMPILERFEATURES_NILT,
-          class ARGS_10 = BSLS_COMPILERFEATURES_NILT,
-          class ARGS_11 = BSLS_COMPILERFEATURES_NILT,
-          class ARGS_12 = BSLS_COMPILERFEATURES_NILT,
-          class ARGS_13 = BSLS_COMPILERFEATURES_NILT,
           class = BSLS_COMPILERFEATURES_NILT>
 struct Function_MemFuncInvokeImp;
 
@@ -6667,518 +5453,6 @@ struct Function_MemFuncInvokeImp<FUNC, OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
 
 };
 
-template <class FUNC, class OBJ_TYPE, class OBJ_ARG_TYPE, class RET,
-          class ARGS_01,
-          class ARGS_02,
-          class ARGS_03,
-          class ARGS_04,
-          class ARGS_05,
-          class ARGS_06,
-          class ARGS_07,
-          class ARGS_08,
-          class ARGS_09,
-          class ARGS_10,
-          class ARGS_11>
-struct Function_MemFuncInvokeImp<FUNC, OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                    ARGS_02,
-                                                                    ARGS_03,
-                                                                    ARGS_04,
-                                                                    ARGS_05,
-                                                                    ARGS_06,
-                                                                    ARGS_07,
-                                                                    ARGS_08,
-                                                                    ARGS_09,
-                                                                    ARGS_10,
-                                                                    ARGS_11> {
-
-    typedef typename is_convertible<
-            typename remove_reference<OBJ_ARG_TYPE>::type*,
-            OBJ_TYPE*
-        >::type DirectInvoke;
-
-    enum { NUM_ARGS = 11u };
-
-    static
-    RET invoke_imp(true_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return (const_cast<ObjTp>(obj).*f)(args_01,
-                                           args_02,
-                                           args_03,
-                                           args_04,
-                                           args_05,
-                                           args_06,
-                                           args_07,
-                                           args_08,
-                                           args_09,
-                                           args_10,
-                                           args_11);
-    }
-
-    static
-    RET invoke_imp(false_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return ((*const_cast<ObjTp>(obj)).*f)(args_01,
-                                              args_02,
-                                              args_03,
-                                              args_04,
-                                              args_05,
-                                              args_06,
-                                              args_07,
-                                              args_08,
-                                              args_09,
-                                              args_10,
-                                              args_11);
-    }
-
-  public:
-    static
-    RET invoke(FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11)
-        { return invoke_imp(DirectInvoke(), f, obj, args_01,
-                                                    args_02,
-                                                    args_03,
-                                                    args_04,
-                                                    args_05,
-                                                    args_06,
-                                                    args_07,
-                                                    args_08,
-                                                    args_09,
-                                                    args_10,
-                                                    args_11); }
-
-};
-
-template <class FUNC, class OBJ_TYPE, class OBJ_ARG_TYPE, class RET,
-          class ARGS_01,
-          class ARGS_02,
-          class ARGS_03,
-          class ARGS_04,
-          class ARGS_05,
-          class ARGS_06,
-          class ARGS_07,
-          class ARGS_08,
-          class ARGS_09,
-          class ARGS_10,
-          class ARGS_11,
-          class ARGS_12>
-struct Function_MemFuncInvokeImp<FUNC, OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                    ARGS_02,
-                                                                    ARGS_03,
-                                                                    ARGS_04,
-                                                                    ARGS_05,
-                                                                    ARGS_06,
-                                                                    ARGS_07,
-                                                                    ARGS_08,
-                                                                    ARGS_09,
-                                                                    ARGS_10,
-                                                                    ARGS_11,
-                                                                    ARGS_12> {
-
-    typedef typename is_convertible<
-            typename remove_reference<OBJ_ARG_TYPE>::type*,
-            OBJ_TYPE*
-        >::type DirectInvoke;
-
-    enum { NUM_ARGS = 12u };
-
-    static
-    RET invoke_imp(true_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return (const_cast<ObjTp>(obj).*f)(args_01,
-                                           args_02,
-                                           args_03,
-                                           args_04,
-                                           args_05,
-                                           args_06,
-                                           args_07,
-                                           args_08,
-                                           args_09,
-                                           args_10,
-                                           args_11,
-                                           args_12);
-    }
-
-    static
-    RET invoke_imp(false_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return ((*const_cast<ObjTp>(obj)).*f)(args_01,
-                                              args_02,
-                                              args_03,
-                                              args_04,
-                                              args_05,
-                                              args_06,
-                                              args_07,
-                                              args_08,
-                                              args_09,
-                                              args_10,
-                                              args_11,
-                                              args_12);
-    }
-
-  public:
-    static
-    RET invoke(FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12)
-        { return invoke_imp(DirectInvoke(), f, obj, args_01,
-                                                    args_02,
-                                                    args_03,
-                                                    args_04,
-                                                    args_05,
-                                                    args_06,
-                                                    args_07,
-                                                    args_08,
-                                                    args_09,
-                                                    args_10,
-                                                    args_11,
-                                                    args_12); }
-
-};
-
-template <class FUNC, class OBJ_TYPE, class OBJ_ARG_TYPE, class RET,
-          class ARGS_01,
-          class ARGS_02,
-          class ARGS_03,
-          class ARGS_04,
-          class ARGS_05,
-          class ARGS_06,
-          class ARGS_07,
-          class ARGS_08,
-          class ARGS_09,
-          class ARGS_10,
-          class ARGS_11,
-          class ARGS_12,
-          class ARGS_13>
-struct Function_MemFuncInvokeImp<FUNC, OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                    ARGS_02,
-                                                                    ARGS_03,
-                                                                    ARGS_04,
-                                                                    ARGS_05,
-                                                                    ARGS_06,
-                                                                    ARGS_07,
-                                                                    ARGS_08,
-                                                                    ARGS_09,
-                                                                    ARGS_10,
-                                                                    ARGS_11,
-                                                                    ARGS_12,
-                                                                    ARGS_13> {
-
-    typedef typename is_convertible<
-            typename remove_reference<OBJ_ARG_TYPE>::type*,
-            OBJ_TYPE*
-        >::type DirectInvoke;
-
-    enum { NUM_ARGS = 13u };
-
-    static
-    RET invoke_imp(true_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return (const_cast<ObjTp>(obj).*f)(args_01,
-                                           args_02,
-                                           args_03,
-                                           args_04,
-                                           args_05,
-                                           args_06,
-                                           args_07,
-                                           args_08,
-                                           args_09,
-                                           args_10,
-                                           args_11,
-                                           args_12,
-                                           args_13);
-    }
-
-    static
-    RET invoke_imp(false_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return ((*const_cast<ObjTp>(obj)).*f)(args_01,
-                                              args_02,
-                                              args_03,
-                                              args_04,
-                                              args_05,
-                                              args_06,
-                                              args_07,
-                                              args_08,
-                                              args_09,
-                                              args_10,
-                                              args_11,
-                                              args_12,
-                                              args_13);
-    }
-
-  public:
-    static
-    RET invoke(FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13)
-        { return invoke_imp(DirectInvoke(), f, obj, args_01,
-                                                    args_02,
-                                                    args_03,
-                                                    args_04,
-                                                    args_05,
-                                                    args_06,
-                                                    args_07,
-                                                    args_08,
-                                                    args_09,
-                                                    args_10,
-                                                    args_11,
-                                                    args_12,
-                                                    args_13); }
-
-};
-
-template <class FUNC, class OBJ_TYPE, class OBJ_ARG_TYPE, class RET,
-          class ARGS_01,
-          class ARGS_02,
-          class ARGS_03,
-          class ARGS_04,
-          class ARGS_05,
-          class ARGS_06,
-          class ARGS_07,
-          class ARGS_08,
-          class ARGS_09,
-          class ARGS_10,
-          class ARGS_11,
-          class ARGS_12,
-          class ARGS_13,
-          class ARGS_14>
-struct Function_MemFuncInvokeImp<FUNC, OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                    ARGS_02,
-                                                                    ARGS_03,
-                                                                    ARGS_04,
-                                                                    ARGS_05,
-                                                                    ARGS_06,
-                                                                    ARGS_07,
-                                                                    ARGS_08,
-                                                                    ARGS_09,
-                                                                    ARGS_10,
-                                                                    ARGS_11,
-                                                                    ARGS_12,
-                                                                    ARGS_13,
-                                                                    ARGS_14> {
-
-    typedef typename is_convertible<
-            typename remove_reference<OBJ_ARG_TYPE>::type*,
-            OBJ_TYPE*
-        >::type DirectInvoke;
-
-    enum { NUM_ARGS = 14u };
-
-    static
-    RET invoke_imp(true_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return (const_cast<ObjTp>(obj).*f)(args_01,
-                                           args_02,
-                                           args_03,
-                                           args_04,
-                                           args_05,
-                                           args_06,
-                                           args_07,
-                                           args_08,
-                                           args_09,
-                                           args_10,
-                                           args_11,
-                                           args_12,
-                                           args_13,
-                                           args_14);
-    }
-
-    static
-    RET invoke_imp(false_type , FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-          typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14) {
-        typedef typename bsl::add_lvalue_reference<OBJ_ARG_TYPE>::type ObjTp;
-        return ((*const_cast<ObjTp>(obj)).*f)(args_01,
-                                              args_02,
-                                              args_03,
-                                              args_04,
-                                              args_05,
-                                              args_06,
-                                              args_07,
-                                              args_08,
-                                              args_09,
-                                              args_10,
-                                              args_11,
-                                              args_12,
-                                              args_13,
-                                              args_14);
-    }
-
-  public:
-    static
-    RET invoke(FUNC f,
-           typename BloombergLP::bslmf::ForwardingType<OBJ_ARG_TYPE>::Type obj,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-           typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14)
-        { return invoke_imp(DirectInvoke(), f, obj, args_01,
-                                                    args_02,
-                                                    args_03,
-                                                    args_04,
-                                                    args_05,
-                                                    args_06,
-                                                    args_07,
-                                                    args_08,
-                                                    args_09,
-                                                    args_10,
-                                                    args_11,
-                                                    args_12,
-                                                    args_13,
-                                                    args_14); }
-
-};
-
 
 template <class RET, class OBJ_TYPE, class OBJ_ARG_TYPE>
 struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(), OBJ_ARG_TYPE>
@@ -7437,218 +5711,6 @@ struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
 {
 };
 
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11), OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11), OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12), OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12), OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13), OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13), OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12,
-                                                   ARGS_13>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13,
-                                     class ARGS_14, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13,
-                                                ARGS_14), OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13,
-                                                  ARGS_14), OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12,
-                                                   ARGS_13,
-                                                   ARGS_14>
-{
-};
-
 
 template <class RET, class OBJ_TYPE, class OBJ_ARG_TYPE>
 struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)() const, OBJ_ARG_TYPE>
@@ -7904,218 +5966,6 @@ struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
                                                                    ARGS_08,
                                                                    ARGS_09,
                                                                    ARGS_10>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11) const, OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11) const,
-                                const OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                   ARGS_02,
-                                                                   ARGS_03,
-                                                                   ARGS_04,
-                                                                   ARGS_05,
-                                                                   ARGS_06,
-                                                                   ARGS_07,
-                                                                   ARGS_08,
-                                                                   ARGS_09,
-                                                                   ARGS_10,
-                                                                   ARGS_11>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12) const, OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12) const,
-                                const OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                   ARGS_02,
-                                                                   ARGS_03,
-                                                                   ARGS_04,
-                                                                   ARGS_05,
-                                                                   ARGS_06,
-                                                                   ARGS_07,
-                                                                   ARGS_08,
-                                                                   ARGS_09,
-                                                                   ARGS_10,
-                                                                   ARGS_11,
-                                                                   ARGS_12>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13) const, OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13) const,
-                                const OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                   ARGS_02,
-                                                                   ARGS_03,
-                                                                   ARGS_04,
-                                                                   ARGS_05,
-                                                                   ARGS_06,
-                                                                   ARGS_07,
-                                                                   ARGS_08,
-                                                                   ARGS_09,
-                                                                   ARGS_10,
-                                                                   ARGS_11,
-                                                                   ARGS_12,
-                                                                   ARGS_13>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13,
-                                     class ARGS_14, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13,
-                                                ARGS_14) const, OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13,
-                                                  ARGS_14) const,
-                                const OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                   ARGS_02,
-                                                                   ARGS_03,
-                                                                   ARGS_04,
-                                                                   ARGS_05,
-                                                                   ARGS_06,
-                                                                   ARGS_07,
-                                                                   ARGS_08,
-                                                                   ARGS_09,
-                                                                   ARGS_10,
-                                                                   ARGS_11,
-                                                                   ARGS_12,
-                                                                   ARGS_13,
-                                                                   ARGS_14>
 {
 };
 
@@ -8385,222 +6235,6 @@ struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
                                                                       ARGS_08,
                                                                       ARGS_09,
                                                                       ARGS_10>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11) volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11) volatile,
-                                volatile OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                      ARGS_02,
-                                                                      ARGS_03,
-                                                                      ARGS_04,
-                                                                      ARGS_05,
-                                                                      ARGS_06,
-                                                                      ARGS_07,
-                                                                      ARGS_08,
-                                                                      ARGS_09,
-                                                                      ARGS_10,
-                                                                      ARGS_11>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12) volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12) volatile,
-                                volatile OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                      ARGS_02,
-                                                                      ARGS_03,
-                                                                      ARGS_04,
-                                                                      ARGS_05,
-                                                                      ARGS_06,
-                                                                      ARGS_07,
-                                                                      ARGS_08,
-                                                                      ARGS_09,
-                                                                      ARGS_10,
-                                                                      ARGS_11,
-                                                                      ARGS_12>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13) volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13) volatile,
-                                volatile OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                      ARGS_02,
-                                                                      ARGS_03,
-                                                                      ARGS_04,
-                                                                      ARGS_05,
-                                                                      ARGS_06,
-                                                                      ARGS_07,
-                                                                      ARGS_08,
-                                                                      ARGS_09,
-                                                                      ARGS_10,
-                                                                      ARGS_11,
-                                                                      ARGS_12,
-                                                                      ARGS_13>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13,
-                                     class ARGS_14, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13,
-                                                ARGS_14) volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13,
-                                                  ARGS_14) volatile,
-                                volatile OBJ_TYPE, OBJ_ARG_TYPE, RET, ARGS_01,
-                                                                      ARGS_02,
-                                                                      ARGS_03,
-                                                                      ARGS_04,
-                                                                      ARGS_05,
-                                                                      ARGS_06,
-                                                                      ARGS_07,
-                                                                      ARGS_08,
-                                                                      ARGS_09,
-                                                                      ARGS_10,
-                                                                      ARGS_11,
-                                                                      ARGS_12,
-                                                                      ARGS_13,
-                                                                      ARGS_14>
 {
 };
 
@@ -8884,226 +6518,6 @@ struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
 {
 };
 
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11) const volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11) const volatile,
-                                const volatile OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12) const volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12) const volatile,
-                                const volatile OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13) const volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13) const volatile,
-                                const volatile OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12,
-                                                   ARGS_13>
-{
-};
-
-template <class RET, class OBJ_TYPE, class ARGS_01,
-                                     class ARGS_02,
-                                     class ARGS_03,
-                                     class ARGS_04,
-                                     class ARGS_05,
-                                     class ARGS_06,
-                                     class ARGS_07,
-                                     class ARGS_08,
-                                     class ARGS_09,
-                                     class ARGS_10,
-                                     class ARGS_11,
-                                     class ARGS_12,
-                                     class ARGS_13,
-                                     class ARGS_14, class OBJ_ARG_TYPE>
-struct Function_MemFuncInvoke<RET (OBJ_TYPE::*)(ARGS_01,
-                                                ARGS_02,
-                                                ARGS_03,
-                                                ARGS_04,
-                                                ARGS_05,
-                                                ARGS_06,
-                                                ARGS_07,
-                                                ARGS_08,
-                                                ARGS_09,
-                                                ARGS_10,
-                                                ARGS_11,
-                                                ARGS_12,
-                                                ARGS_13,
-                                                ARGS_14) const volatile,
-                              OBJ_ARG_TYPE>
-    : Function_MemFuncInvokeImp<RET (OBJ_TYPE::*)(ARGS_01,
-                                                  ARGS_02,
-                                                  ARGS_03,
-                                                  ARGS_04,
-                                                  ARGS_05,
-                                                  ARGS_06,
-                                                  ARGS_07,
-                                                  ARGS_08,
-                                                  ARGS_09,
-                                                  ARGS_10,
-                                                  ARGS_11,
-                                                  ARGS_12,
-                                                  ARGS_13,
-                                                  ARGS_14) const volatile,
-                                const volatile OBJ_TYPE,
-                                OBJ_ARG_TYPE, RET, ARGS_01,
-                                                   ARGS_02,
-                                                   ARGS_03,
-                                                   ARGS_04,
-                                                   ARGS_05,
-                                                   ARGS_06,
-                                                   ARGS_07,
-                                                   ARGS_08,
-                                                   ARGS_09,
-                                                   ARGS_10,
-                                                   ARGS_11,
-                                                   ARGS_12,
-                                                   ARGS_13,
-                                                   ARGS_14>
-{
-};
-
 #else
 // The generated code below is a workaround for the absence of perfect
 // forwarding in some compilers.
@@ -9297,6 +6711,26 @@ const Function_Rep::AllocCategory
 
 }  // close namespace bsl
 
+                        // ------
+                        // TRAITS
+                        // ------
+
+namespace BloombergLP {
+namespace bslma {
+
+template <class PROTOTYPE>
+struct UsesBslmaAllocator<bsl::function<PROTOTYPE> > : bsl::true_type { };
+
+}  // close namespace bslma
+
+namespace bslmf {
+
+template <class PROTOTYPE>
+struct UsesAllocatorArgT<bsl::function<PROTOTYPE> > : bsl::true_type { };
+
+}  // close namespace bslmf
+}  // close enterprise namespace
+
                         // --------------------------
                         // class Function_PairBufDesc
                         // --------------------------
@@ -9409,9 +6843,9 @@ bsl::Function_Rep::functionManager(ManagerOpCode  opCode,
     // its heap-allocated address is found in 'd_objbuf.d_object_p'.  There is
     // no need to computed this using metaprogramming; the compiler will
     // optimize away the conditional test.
-    char *wrappedFuncBuf_p = static_cast<char*>(
-        k_IS_INPLACE ? &rep->d_objbuf : rep->d_objbuf.d_object_p);
-    FUNC *wrappedFunc_p = reinterpret_cast<FUNC*>(wrappedFuncBuf_p);
+    void *wrappedFuncBuf_p =
+        k_IS_INPLACE ? &rep->d_objbuf : rep->d_objbuf.d_object_p;
+    FUNC *wrappedFunc_p = static_cast<FUNC*>(wrappedFuncBuf_p);
 
     switch (opCode) {
 
@@ -9422,15 +6856,15 @@ bsl::Function_Rep::functionManager(ManagerOpCode  opCode,
         // it trivially.
 
         FUNC &srcFunc = *static_cast<FUNC*>(input.asPtr());
-
 #ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        bslalg::ScalarPrimitives::moveConstruct(wrappedFunc_p,
-                                                srcFunc,
-                                                rep->d_allocator_p);
+        bslma::ConstructionUtil::construct(
+                                         wrappedFunc_p,
+                                         rep->d_allocator_p,
+                                         bslmf::MovableRefUtil::move(srcFunc));
 #else
-        bslalg::ScalarPrimitives::copyConstruct(wrappedFunc_p,
-                                                srcFunc,
-                                                rep->d_allocator_p);
+        bslma::ConstructionUtil::construct(wrappedFunc_p,
+                                           rep->d_allocator_p,
+                                           srcFunc);
 #endif
         return wrappedFunc_p;                                         // RETURN
       } break;
@@ -9441,9 +6875,9 @@ bsl::Function_Rep::functionManager(ManagerOpCode  opCode,
         // this operation for bitwise copyable types.  If the type is trivially
         // copyable, then the copy operation below will do it trivially.
         const FUNC &srcFunc = *static_cast<const FUNC*>(input.asPtr());
-        bslalg::ScalarPrimitives::copyConstruct(wrappedFunc_p,
-                                                srcFunc,
-                                                rep->d_allocator_p);
+        bslma::ConstructionUtil::construct(wrappedFunc_p,
+                                           rep->d_allocator_p,
+                                           srcFunc);
         return wrappedFunc_p;                                         // RETURN
       } break;
 
@@ -9459,9 +6893,9 @@ bsl::Function_Rep::functionManager(ManagerOpCode  opCode,
       case e_DESTRUCTIVE_MOVE: {
         void *input_p      = input.asPtr();
         FUNC *srcFunc_p    = static_cast<FUNC*>(input_p);
-
-        bslalg::ScalarPrimitives::destructiveMove(wrappedFunc_p, srcFunc_p,
-                                                  rep->d_allocator_p);
+        bslma::ConstructionUtil::destructiveMove(wrappedFunc_p,
+                                                 rep->d_allocator_p,
+                                                 srcFunc_p);
       } break;
 
       case e_GET_SIZE:     return k_SOO_FUNC_SIZE;                    // RETURN
@@ -9524,8 +6958,8 @@ bsl::Function_Rep::ownedAllocManager(ManagerOpCode  opCode,
         // Compute the distance (in bytes) between the start of the source and
         // the start of the destination to see if they overlap.
         std::size_t dist = static_cast<std::size_t>(
-            abs(reinterpret_cast<const char*>(rep->d_allocator_p) -
-                reinterpret_cast<const char*>(&other)));
+            std::abs(reinterpret_cast<const char*>(rep->d_allocator_p) -
+                     reinterpret_cast<const char*>(&other)));
 
         if (dist >= sizeof(Adaptor)) {
             // Input and output don't overlap.
@@ -9823,8 +7257,9 @@ RET bsl::function<RET(ARGS...)>::functionPtrInvoker(const Function_Rep *rep,
 
     // Cast to 'RET' is needed to avoid compilation error if 'RET' is void and
     // 'f' returns non-void.
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS>::
-                              forwardToTarget(args)...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS>::
+                    forwardToTarget(args)...));
 }
 
 template <class RET, class... ARGS>
@@ -9855,7 +7290,8 @@ RET bsl::function<RET(ARGS...)>::inplaceFunctorInvoker(const Function_Rep *rep,
 
     // Cast to 'RET' is needed to avoid compilation error if 'RET' is void and
     // 'f' returns non-void.
-    return static_cast<RET>(f(args...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args...));
 }
 
 template <class RET, class... ARGS>
@@ -9868,7 +7304,8 @@ bsl::function<RET(ARGS...)>::outofplaceFunctorInvoker(const Function_Rep *rep,
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
     // Cast to 'RET' is needed to avoid compilation error if 'RET' is void and
     // 'f' returns non-void.
-    return static_cast<RET>(f(args...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args...));
 }
 
 template <class RET, class... ARGS>
@@ -9923,26 +7360,6 @@ bsl::function<RET(ARGS...)>::function(const function& other)
 }
 
 template <class RET, class... ARGS>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS...)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class... ARGS>
 template<class ALLOC>
 inline
 bsl::function<RET(ARGS...)>::function(allocator_arg_t, const ALLOC& alloc)
@@ -9977,14 +7394,12 @@ bsl::function<RET(ARGS...)>::function(allocator_arg_t,
 
 template <class RET, class... ARGS>
 template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS...)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+inline void
+bsl::function<RET(ARGS...)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -9993,7 +7408,7 @@ bsl::function<RET(ARGS...)>::function(allocator_arg_t,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         // Empty 'function' object
@@ -10001,33 +7416,34 @@ bsl::function<RET(ARGS...)>::function(allocator_arg_t,
     }
 }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-
 template <class RET, class... ARGS>
 inline
-bsl::function<RET(ARGS...)>::function(function&& other)
+bsl::function<RET(ARGS...)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class... ARGS>
-template<class ALLOC>
+template <class ALLOC>
 inline
-bsl::function<RET(ARGS...)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+bsl::function<RET(ARGS...)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
-
-#endif //  BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
 
 template <class RET, class... ARGS>
 inline
@@ -10053,54 +7469,40 @@ inline
 bsl::function<RET(ARGS...)>&
 bsl::function<RET(ARGS...)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-
 template <class RET, class... ARGS>
 inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(function& rhs)
+bsl::function<RET(ARGS...)>& bsl::function<RET(ARGS...)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
-    // Delegate to the const version
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class... ARGS>
-inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(function&& rhs)
-{
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
         // Equal allocators.  Just swap.
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
 }
-
-#endif
 
 template <class RET, class... ARGS>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(FUNC&& func)
+void bsl::function<RET(ARGS...)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    // Remove reference and const from 'FUNC' to get underlying functor type.
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    // Remove possible const from 'FUNC' to get underlying functor type.
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     // Initialize tempRep using allocator from 'this'
@@ -10109,16 +7511,8 @@ bsl::function<RET(ARGS...)>::operator=(FUNC&& func)
     // Move 'func' into initialized 'tempRep'
     if (tempRep.d_funcManager_p) {
         // Get non-const pointer to 'func'
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<FUNC&&>::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     // If successful (no exceptions thrown) swap 'tempRep' into '*this'.
@@ -10129,8 +7523,6 @@ bsl::function<RET(ARGS...)>::operator=(FUNC&& func)
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class... ARGS>
@@ -10181,6 +7573,7 @@ bsl::function<RET(ARGS...)>::operator bool() const BSLS_NOTHROW_SPEC
     return invoker();
 }
 #endif // BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
+
 
 // FREE FUNCTIONS
 template <class RET, class... ARGS>
@@ -10234,7 +7627,8 @@ RET bsl::function<RET()>::functionPtrInvoker(const Function_Rep *rep)
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f());
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f());
 }
 
 template <class RET, class ARGS_01>
@@ -10245,8 +7639,9 @@ RET bsl::function<RET(ARGS_01)>::functionPtrInvoker(const Function_Rep *rep,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01)));
 }
 
 template <class RET, class ARGS_01,
@@ -10260,10 +7655,11 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02)));
 }
 
 template <class RET, class ARGS_01,
@@ -10280,12 +7676,13 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03)));
 }
 
 template <class RET, class ARGS_01,
@@ -10305,14 +7702,15 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04)));
 }
 
 template <class RET, class ARGS_01,
@@ -10335,16 +7733,17 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05)));
 }
 
 template <class RET, class ARGS_01,
@@ -10370,18 +7769,19 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
+                    forwardToTarget(args_06)));
 }
 
 template <class RET, class ARGS_01,
@@ -10410,20 +7810,21 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
+                    forwardToTarget(args_06),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
+                    forwardToTarget(args_07)));
 }
 
 template <class RET, class ARGS_01,
@@ -10455,22 +7856,23 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
+                    forwardToTarget(args_06),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
+                    forwardToTarget(args_07),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
+                    forwardToTarget(args_08)));
 }
 
 template <class RET, class ARGS_01,
@@ -10505,24 +7907,25 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
+                    forwardToTarget(args_06),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
+                    forwardToTarget(args_07),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
+                    forwardToTarget(args_08),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
+                    forwardToTarget(args_09)));
 }
 
 template <class RET, class ARGS_01,
@@ -10560,304 +7963,27 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
-                              forwardToTarget(args_10)));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11)>::functionPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11)
-{
-    FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
-
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
-                              forwardToTarget(args_10),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_11>::
-                              forwardToTarget(args_11)));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12)>::functionPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12)
-{
-    FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
-
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
-                              forwardToTarget(args_10),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_11>::
-                              forwardToTarget(args_11),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_12>::
-                              forwardToTarget(args_12)));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13)>::functionPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13)
-{
-    FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
-
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
-                              forwardToTarget(args_10),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_11>::
-                              forwardToTarget(args_11),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_12>::
-                              forwardToTarget(args_12),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_13>::
-                              forwardToTarget(args_13)));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13,
-                      ARGS_14)>::functionPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14)
-{
-    FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
-
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
-                              forwardToTarget(args_01),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
-                              forwardToTarget(args_02),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
-                              forwardToTarget(args_03),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
-                              forwardToTarget(args_04),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
-                              forwardToTarget(args_05),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
-                              forwardToTarget(args_06),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
-                              forwardToTarget(args_07),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
-                              forwardToTarget(args_08),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
-                              forwardToTarget(args_09),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
-                              forwardToTarget(args_10),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_11>::
-                              forwardToTarget(args_11),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_12>::
-                              forwardToTarget(args_12),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_13>::
-                              forwardToTarget(args_13),
-                              BloombergLP::bslmf::ForwardingTypeUtil<ARGS_14>::
-                              forwardToTarget(args_14)));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS_01>::
+                    forwardToTarget(args_01),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_02>::
+                    forwardToTarget(args_02),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_03>::
+                    forwardToTarget(args_03),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_04>::
+                    forwardToTarget(args_04),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_05>::
+                    forwardToTarget(args_05),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_06>::
+                    forwardToTarget(args_06),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_07>::
+                    forwardToTarget(args_07),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_08>::
+                    forwardToTarget(args_08),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_09>::
+                    forwardToTarget(args_09),
+                    BloombergLP::bslmf::ForwardingTypeUtil<ARGS_10>::
+                    forwardToTarget(args_10)));
 }
 
 
@@ -11250,296 +8376,6 @@ RET bsl::function<RET(ARGS_01,
                                        args_10);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11)>::memFuncPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11)
-{
-    using namespace BloombergLP;
-
-    FUNC f = (const FUNC&)(rep->d_objbuf.d_memFunc_p);
-    typedef typename bslmf::NthParameter<0, ARGS_01,
-                                            ARGS_02,
-                                            ARGS_03,
-                                            ARGS_04,
-                                            ARGS_05,
-                                            ARGS_06,
-                                            ARGS_07,
-                                            ARGS_08,
-                                            ARGS_09,
-                                            ARGS_10,
-                                            ARGS_11>::Type ObjType;
-    typedef Function_MemFuncInvoke<FUNC, ObjType> InvokeType;
-    BSLMF_ASSERT(11u == InvokeType::NUM_ARGS + 1);
-    return (RET) InvokeType::invoke(f, args_01,
-                                       args_02,
-                                       args_03,
-                                       args_04,
-                                       args_05,
-                                       args_06,
-                                       args_07,
-                                       args_08,
-                                       args_09,
-                                       args_10,
-                                       args_11);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12)>::memFuncPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12)
-{
-    using namespace BloombergLP;
-
-    FUNC f = (const FUNC&)(rep->d_objbuf.d_memFunc_p);
-    typedef typename bslmf::NthParameter<0, ARGS_01,
-                                            ARGS_02,
-                                            ARGS_03,
-                                            ARGS_04,
-                                            ARGS_05,
-                                            ARGS_06,
-                                            ARGS_07,
-                                            ARGS_08,
-                                            ARGS_09,
-                                            ARGS_10,
-                                            ARGS_11,
-                                            ARGS_12>::Type ObjType;
-    typedef Function_MemFuncInvoke<FUNC, ObjType> InvokeType;
-    BSLMF_ASSERT(12u == InvokeType::NUM_ARGS + 1);
-    return (RET) InvokeType::invoke(f, args_01,
-                                       args_02,
-                                       args_03,
-                                       args_04,
-                                       args_05,
-                                       args_06,
-                                       args_07,
-                                       args_08,
-                                       args_09,
-                                       args_10,
-                                       args_11,
-                                       args_12);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13)>::memFuncPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13)
-{
-    using namespace BloombergLP;
-
-    FUNC f = (const FUNC&)(rep->d_objbuf.d_memFunc_p);
-    typedef typename bslmf::NthParameter<0, ARGS_01,
-                                            ARGS_02,
-                                            ARGS_03,
-                                            ARGS_04,
-                                            ARGS_05,
-                                            ARGS_06,
-                                            ARGS_07,
-                                            ARGS_08,
-                                            ARGS_09,
-                                            ARGS_10,
-                                            ARGS_11,
-                                            ARGS_12,
-                                            ARGS_13>::Type ObjType;
-    typedef Function_MemFuncInvoke<FUNC, ObjType> InvokeType;
-    BSLMF_ASSERT(13u == InvokeType::NUM_ARGS + 1);
-    return (RET) InvokeType::invoke(f, args_01,
-                                       args_02,
-                                       args_03,
-                                       args_04,
-                                       args_05,
-                                       args_06,
-                                       args_07,
-                                       args_08,
-                                       args_09,
-                                       args_10,
-                                       args_11,
-                                       args_12,
-                                       args_13);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13,
-                      ARGS_14)>::memFuncPtrInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14)
-{
-    using namespace BloombergLP;
-
-    FUNC f = (const FUNC&)(rep->d_objbuf.d_memFunc_p);
-    typedef typename bslmf::NthParameter<0, ARGS_01,
-                                            ARGS_02,
-                                            ARGS_03,
-                                            ARGS_04,
-                                            ARGS_05,
-                                            ARGS_06,
-                                            ARGS_07,
-                                            ARGS_08,
-                                            ARGS_09,
-                                            ARGS_10,
-                                            ARGS_11,
-                                            ARGS_12,
-                                            ARGS_13,
-                                            ARGS_14>::Type ObjType;
-    typedef Function_MemFuncInvoke<FUNC, ObjType> InvokeType;
-    BSLMF_ASSERT(14u == InvokeType::NUM_ARGS + 1);
-    return (RET) InvokeType::invoke(f, args_01,
-                                       args_02,
-                                       args_03,
-                                       args_04,
-                                       args_05,
-                                       args_06,
-                                       args_07,
-                                       args_08,
-                                       args_09,
-                                       args_10,
-                                       args_11,
-                                       args_12,
-                                       args_13,
-                                       args_14);
-}
-
 
 template <class RET>
 template <class FUNC>
@@ -11548,7 +8384,8 @@ RET bsl::function<RET()>::inplaceFunctorInvoker(const Function_Rep *rep)
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f());
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f());
 }
 
 template <class RET, class ARGS_01>
@@ -11559,7 +8396,8 @@ RET bsl::function<RET(ARGS_01)>::inplaceFunctorInvoker(const Function_Rep *rep,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01));
 }
 
 template <class RET, class ARGS_01,
@@ -11573,8 +8411,9 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02));
 }
 
 template <class RET, class ARGS_01,
@@ -11591,9 +8430,10 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03));
 }
 
 template <class RET, class ARGS_01,
@@ -11613,10 +8453,11 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04));
 }
 
 template <class RET, class ARGS_01,
@@ -11639,11 +8480,12 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05));
 }
 
 template <class RET, class ARGS_01,
@@ -11669,12 +8511,13 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06));
 }
 
 template <class RET, class ARGS_01,
@@ -11703,13 +8546,14 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07));
 }
 
 template <class RET, class ARGS_01,
@@ -11741,14 +8585,15 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08));
 }
 
 template <class RET, class ARGS_01,
@@ -11783,15 +8628,16 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08,
+                    args_09));
 }
 
 template <class RET, class ARGS_01,
@@ -11829,244 +8675,17 @@ RET bsl::function<RET(ARGS_01,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11)>::inplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11)
-{
-    FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
-
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12)>::inplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12)
-{
-    FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
-
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13)>::inplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13)
-{
-    FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
-
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12,
-                              args_13));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template <class FUNC>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13,
-                      ARGS_14)>::inplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14)
-{
-    FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
-
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12,
-                              args_13,
-                              args_14));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08,
+                    args_09,
+                    args_10));
 }
 
 
@@ -12077,7 +8696,8 @@ RET
 bsl::function<RET()>::outofplaceFunctorInvoker(const Function_Rep *rep)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f());
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f());
 }
 
 template <class RET, class ARGS_01>
@@ -12088,7 +8708,8 @@ bsl::function<RET(ARGS_01)>::outofplaceFunctorInvoker(const Function_Rep *rep,
             typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01));
 }
 
 template <class RET, class ARGS_01,
@@ -12102,8 +8723,9 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02));
 }
 
 template <class RET, class ARGS_01,
@@ -12120,9 +8742,10 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03));
 }
 
 template <class RET, class ARGS_01,
@@ -12142,10 +8765,11 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04));
 }
 
 template <class RET, class ARGS_01,
@@ -12168,11 +8792,12 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05));
 }
 
 template <class RET, class ARGS_01,
@@ -12198,12 +8823,13 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06));
 }
 
 template <class RET, class ARGS_01,
@@ -12232,13 +8858,14 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07));
 }
 
 template <class RET, class ARGS_01,
@@ -12270,14 +8897,15 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08));
 }
 
 template <class RET, class ARGS_01,
@@ -12312,15 +8940,16 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08,
+                    args_09));
 }
 
 template <class RET, class ARGS_01,
@@ -12358,244 +8987,17 @@ bsl::function<RET(ARGS_01,
             typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template <class FUNC>
-inline
-RET
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::outofplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11)
-{
-    FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template <class FUNC>
-inline
-RET
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::outofplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12)
-{
-    FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template <class FUNC>
-inline
-RET
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::outofplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13)
-{
-    FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12,
-                              args_13));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template <class FUNC>
-inline
-RET
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::outofplaceFunctorInvoker(const Function_Rep *rep,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_01>::Type args_01,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_02>::Type args_02,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_03>::Type args_03,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_04>::Type args_04,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_05>::Type args_05,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_06>::Type args_06,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_07>::Type args_07,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_08>::Type args_08,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_09>::Type args_09,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_10>::Type args_10,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_11>::Type args_11,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_12>::Type args_12,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_13>::Type args_13,
-            typename BloombergLP::bslmf::ForwardingType<ARGS_14>::Type args_14)
-{
-    FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args_01,
-                              args_02,
-                              args_03,
-                              args_04,
-                              args_05,
-                              args_06,
-                              args_07,
-                              args_08,
-                              args_09,
-                              args_10,
-                              args_11,
-                              args_12,
-                              args_13,
-                              args_14));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args_01,
+                    args_02,
+                    args_03,
+                    args_04,
+                    args_05,
+                    args_06,
+                    args_07,
+                    args_08,
+                    args_09,
+                    args_10));
 }
 
 
@@ -12802,142 +9204,6 @@ void bsl::function<RET(ARGS_01,
                        ARGS_08,
                        ARGS_09,
                        ARGS_10)>::setInvoker(Invoker *p)
-{
-    BSLMF_ASSERT(sizeof(Invoker*) == sizeof(d_invoker_p));
-
-    typedef void (*VoidFn)();
-
-    d_invoker_p = reinterpret_cast<VoidFn>(p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-void bsl::function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11)>::setInvoker(Invoker *p)
-{
-    BSLMF_ASSERT(sizeof(Invoker*) == sizeof(d_invoker_p));
-
-    typedef void (*VoidFn)();
-
-    d_invoker_p = reinterpret_cast<VoidFn>(p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-void bsl::function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12)>::setInvoker(Invoker *p)
-{
-    BSLMF_ASSERT(sizeof(Invoker*) == sizeof(d_invoker_p));
-
-    typedef void (*VoidFn)();
-
-    d_invoker_p = reinterpret_cast<VoidFn>(p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-void bsl::function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12,
-                       ARGS_13)>::setInvoker(Invoker *p)
-{
-    BSLMF_ASSERT(sizeof(Invoker*) == sizeof(d_invoker_p));
-
-    typedef void (*VoidFn)();
-
-    d_invoker_p = reinterpret_cast<VoidFn>(p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-void bsl::function<RET(ARGS_01,
-                       ARGS_02,
-                       ARGS_03,
-                       ARGS_04,
-                       ARGS_05,
-                       ARGS_06,
-                       ARGS_07,
-                       ARGS_08,
-                       ARGS_09,
-                       ARGS_10,
-                       ARGS_11,
-                       ARGS_12,
-                       ARGS_13,
-                       ARGS_14)>::setInvoker(Invoker *p)
 {
     BSLMF_ASSERT(sizeof(Invoker*) == sizeof(d_invoker_p));
 
@@ -13170,176 +9436,6 @@ bsl::function<RET(ARGS_01,
     return reinterpret_cast<Invoker*>(d_invoker_p);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-typename bsl::function<RET(ARGS_01,
-                           ARGS_02,
-                           ARGS_03,
-                           ARGS_04,
-                           ARGS_05,
-                           ARGS_06,
-                           ARGS_07,
-                           ARGS_08,
-                           ARGS_09,
-                           ARGS_10,
-                           ARGS_11)>::Invoker *
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::invoker() const
-{
-    return reinterpret_cast<Invoker*>(d_invoker_p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-typename bsl::function<RET(ARGS_01,
-                           ARGS_02,
-                           ARGS_03,
-                           ARGS_04,
-                           ARGS_05,
-                           ARGS_06,
-                           ARGS_07,
-                           ARGS_08,
-                           ARGS_09,
-                           ARGS_10,
-                           ARGS_11,
-                           ARGS_12)>::Invoker *
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::invoker() const
-{
-    return reinterpret_cast<Invoker*>(d_invoker_p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-typename bsl::function<RET(ARGS_01,
-                           ARGS_02,
-                           ARGS_03,
-                           ARGS_04,
-                           ARGS_05,
-                           ARGS_06,
-                           ARGS_07,
-                           ARGS_08,
-                           ARGS_09,
-                           ARGS_10,
-                           ARGS_11,
-                           ARGS_12,
-                           ARGS_13)>::Invoker *
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::invoker() const
-{
-    return reinterpret_cast<Invoker*>(d_invoker_p);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-typename bsl::function<RET(ARGS_01,
-                           ARGS_02,
-                           ARGS_03,
-                           ARGS_04,
-                           ARGS_05,
-                           ARGS_06,
-                           ARGS_07,
-                           ARGS_08,
-                           ARGS_09,
-                           ARGS_10,
-                           ARGS_11,
-                           ARGS_12,
-                           ARGS_13,
-                           ARGS_14)>::Invoker *
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::invoker() const
-{
-    return reinterpret_cast<Invoker*>(d_invoker_p);
-}
-
 
 template <class RET>
 inline
@@ -13544,142 +9640,6 @@ bsl::function<RET(ARGS_01,
                   ARGS_08,
                   ARGS_09,
                   ARGS_10)>::function() BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function() BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function() BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function() BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function() BSLS_NOTHROW_SPEC
 {
     using namespace BloombergLP;
 
@@ -13900,142 +9860,6 @@ bsl::function<RET(ARGS_01,
     setInvoker(NULL);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(nullptr_t) BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(nullptr_t) BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(nullptr_t) BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(nullptr_t) BSLS_NOTHROW_SPEC
-{
-    using namespace BloombergLP;
-
-    d_allocator_p     = bslma::Default::defaultAllocator();
-    d_allocManager_p  = &unownedAllocManager;
-    setInvoker(NULL);
-}
-
 
 template <class RET>
 inline
@@ -14213,613 +10037,6 @@ bsl::function<RET(ARGS_01,
 {
     using namespace BloombergLP;
     copyInit(bslma::Default::defaultAllocator(), other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(const function& other)
-{
-    using namespace BloombergLP;
-    copyInit(bslma::Default::defaultAllocator(), other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(const function& other)
-{
-    using namespace BloombergLP;
-    copyInit(bslma::Default::defaultAllocator(), other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(const function& other)
-{
-    using namespace BloombergLP;
-    copyInit(bslma::Default::defaultAllocator(), other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(const function& other)
-{
-    using namespace BloombergLP;
-    copyInit(bslma::Default::defaultAllocator(), other);
-}
-
-
-template <class RET>
-template<class FUNC>
-inline
-bsl::function<RET()>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
 }
 
 
@@ -15027,142 +10244,6 @@ bsl::function<RET(ARGS_01,
                   ARGS_08,
                   ARGS_09,
                   ARGS_10)>::function(allocator_arg_t, const ALLOC& alloc)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(allocator_arg_t, const ALLOC& alloc)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(allocator_arg_t, const ALLOC& alloc)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(allocator_arg_t, const ALLOC& alloc)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(allocator_arg_t, const ALLOC& alloc)
 {
     setInvoker(NULL);
 
@@ -15393,146 +10474,6 @@ bsl::function<RET(ARGS_01,
     initRep(0, typename Traits::Type(alloc), typename Traits::Category());
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(allocator_arg_t, const ALLOC& alloc,
-                                      nullptr_t)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(allocator_arg_t, const ALLOC& alloc,
-                                      nullptr_t)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(allocator_arg_t, const ALLOC& alloc,
-                                      nullptr_t)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(allocator_arg_t, const ALLOC& alloc,
-                                      nullptr_t)
-{
-    setInvoker(NULL);
-
-    typedef Function_AllocTraits<ALLOC> Traits;
-    initRep(0, typename Traits::Type(alloc), typename Traits::Category());
-}
-
 
 template <class RET>
 template<class ALLOC>
@@ -15734,149 +10675,15 @@ bsl::function<RET(ARGS_01,
     copyInit(alloc, other);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(allocator_arg_t,
-                                      const ALLOC&    alloc,
-                                      const function& other)
-{
-    copyInit(alloc, other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(allocator_arg_t,
-                                      const ALLOC&    alloc,
-                                      const function& other)
-{
-    copyInit(alloc, other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(allocator_arg_t,
-                                      const ALLOC&    alloc,
-                                      const function& other)
-{
-    copyInit(alloc, other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(allocator_arg_t,
-                                      const ALLOC&    alloc,
-                                      const function& other)
-{
-    copyInit(alloc, other);
-}
-
 
 template <class RET>
 template<class FUNC, class ALLOC>
-inline
-bsl::function<RET()>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+inline void
+bsl::function<RET()>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -15885,7 +10692,7 @@ bsl::function<RET()>::function(allocator_arg_t,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -15894,14 +10701,12 @@ bsl::function<RET()>::function(allocator_arg_t,
 
 template <class RET, class ARGS_01>
 template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS_01)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+inline void
+bsl::function<RET(ARGS_01)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -15910,7 +10715,7 @@ bsl::function<RET(ARGS_01)>::function(allocator_arg_t,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -15920,15 +10725,13 @@ bsl::function<RET(ARGS_01)>::function(allocator_arg_t,
 template <class RET, class ARGS_01,
                      class ARGS_02>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
-                  ARGS_02)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_02)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -15937,7 +10740,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -15948,16 +10751,14 @@ template <class RET, class ARGS_01,
                      class ARGS_02,
                      class ARGS_03>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
-                  ARGS_03)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_03)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -15966,7 +10767,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -15978,17 +10779,15 @@ template <class RET, class ARGS_01,
                      class ARGS_03,
                      class ARGS_04>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
-                  ARGS_04)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_04)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -15997,7 +10796,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16010,18 +10809,16 @@ template <class RET, class ARGS_01,
                      class ARGS_04,
                      class ARGS_05>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
-                  ARGS_05)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_05)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16030,7 +10827,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16044,19 +10841,17 @@ template <class RET, class ARGS_01,
                      class ARGS_05,
                      class ARGS_06>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
                   ARGS_05,
-                  ARGS_06)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_06)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16065,7 +10860,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16080,20 +10875,18 @@ template <class RET, class ARGS_01,
                      class ARGS_06,
                      class ARGS_07>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
                   ARGS_05,
                   ARGS_06,
-                  ARGS_07)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_07)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16102,7 +10895,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16118,7 +10911,7 @@ template <class RET, class ARGS_01,
                      class ARGS_07,
                      class ARGS_08>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
@@ -16126,13 +10919,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_05,
                   ARGS_06,
                   ARGS_07,
-                  ARGS_08)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_08)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16141,7 +10932,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16158,7 +10949,7 @@ template <class RET, class ARGS_01,
                      class ARGS_08,
                      class ARGS_09>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
@@ -16167,13 +10958,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_06,
                   ARGS_07,
                   ARGS_08,
-                  ARGS_09)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_09)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16182,7 +10971,7 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
@@ -16200,7 +10989,7 @@ template <class RET, class ARGS_01,
                      class ARGS_09,
                      class ARGS_10>
 template<class FUNC, class ALLOC>
-inline
+inline void
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
@@ -16210,13 +10999,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_07,
                   ARGS_08,
                   ARGS_09,
-                  ARGS_10)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+                  ARGS_10)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -16225,229 +11012,41 @@ bsl::function<RET(ARGS_01,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
     }
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, typename AllocTraits::Type(alloc),
-            typename AllocTraits::Category());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-    else {
-        d_funcManager_p = NULL;
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, typename AllocTraits::Type(alloc),
-            typename AllocTraits::Category());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-    else {
-        d_funcManager_p = NULL;
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, typename AllocTraits::Type(alloc),
-            typename AllocTraits::Category());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-    else {
-        d_funcManager_p = NULL;
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, typename AllocTraits::Type(alloc),
-            typename AllocTraits::Category());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-    else {
-        d_funcManager_p = NULL;
-    }
-}
-
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
 
 template <class RET>
 inline
-bsl::function<RET()>::function(function&& other)
+bsl::function<RET()>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01>
 inline
-bsl::function<RET(ARGS_01)>::function(function&& other)
+bsl::function<RET(ARGS_01)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
                      class ARGS_02>
 inline
 bsl::function<RET(ARGS_01,
-                  ARGS_02)>::function(function&& other)
+                  ARGS_02)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16456,9 +11055,11 @@ template <class RET, class ARGS_01,
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
-                  ARGS_03)>::function(function&& other)
+                  ARGS_03)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16469,9 +11070,11 @@ inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
-                  ARGS_04)>::function(function&& other)
+                  ARGS_04)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16484,9 +11087,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
-                  ARGS_05)>::function(function&& other)
+                  ARGS_05)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16501,9 +11106,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_03,
                   ARGS_04,
                   ARGS_05,
-                  ARGS_06)>::function(function&& other)
+                  ARGS_06)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16520,9 +11127,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_04,
                   ARGS_05,
                   ARGS_06,
-                  ARGS_07)>::function(function&& other)
+                  ARGS_07)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16541,9 +11150,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_05,
                   ARGS_06,
                   ARGS_07,
-                  ARGS_08)>::function(function&& other)
+                  ARGS_08)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16564,9 +11175,11 @@ bsl::function<RET(ARGS_01,
                   ARGS_06,
                   ARGS_07,
                   ARGS_08,
-                  ARGS_09)>::function(function&& other)
+                  ARGS_09)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class ARGS_01,
@@ -16589,203 +11202,97 @@ bsl::function<RET(ARGS_01,
                   ARGS_07,
                   ARGS_08,
                   ARGS_09,
-                  ARGS_10)>::function(function&& other)
+                  ARGS_10)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(function&& other)
-{
-    moveInit(other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(function&& other)
-{
-    moveInit(other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(function&& other)
-{
-    moveInit(other);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(function&& other)
-{
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 
 template <class RET>
-template<class ALLOC>
+template <class ALLOC>
 inline
-bsl::function<RET()>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+bsl::function<RET()>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
 template <class RET, class ARGS_01>
-template<class ALLOC>
+template <class ALLOC>
 inline
-bsl::function<RET(ARGS_01)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+bsl::function<RET(ARGS_01)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
 template <class RET, class ARGS_01,
                      class ARGS_02>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
-                  ARGS_02)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_02)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
 template <class RET, class ARGS_01,
                      class ARGS_02,
                      class ARGS_03>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
-                  ARGS_03)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_03)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16793,22 +11300,25 @@ template <class RET, class ARGS_01,
                      class ARGS_02,
                      class ARGS_03,
                      class ARGS_04>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
-                  ARGS_04)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_04)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16817,23 +11327,26 @@ template <class RET, class ARGS_01,
                      class ARGS_03,
                      class ARGS_04,
                      class ARGS_05>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
-                  ARGS_05)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_05)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16843,24 +11356,27 @@ template <class RET, class ARGS_01,
                      class ARGS_04,
                      class ARGS_05,
                      class ARGS_06>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
                   ARGS_05,
-                  ARGS_06)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_06)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16871,7 +11387,7 @@ template <class RET, class ARGS_01,
                      class ARGS_05,
                      class ARGS_06,
                      class ARGS_07>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
@@ -16879,17 +11395,20 @@ bsl::function<RET(ARGS_01,
                   ARGS_04,
                   ARGS_05,
                   ARGS_06,
-                  ARGS_07)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_07)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16901,7 +11420,7 @@ template <class RET, class ARGS_01,
                      class ARGS_06,
                      class ARGS_07,
                      class ARGS_08>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
@@ -16910,17 +11429,20 @@ bsl::function<RET(ARGS_01,
                   ARGS_05,
                   ARGS_06,
                   ARGS_07,
-                  ARGS_08)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_08)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16933,7 +11455,7 @@ template <class RET, class ARGS_01,
                      class ARGS_07,
                      class ARGS_08,
                      class ARGS_09>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
@@ -16943,17 +11465,20 @@ bsl::function<RET(ARGS_01,
                   ARGS_06,
                   ARGS_07,
                   ARGS_08,
-                  ARGS_09)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_09)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
@@ -16967,7 +11492,7 @@ template <class RET, class ARGS_01,
                      class ARGS_08,
                      class ARGS_09,
                      class ARGS_10>
-template<class ALLOC>
+template <class ALLOC>
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
@@ -16978,182 +11503,23 @@ bsl::function<RET(ARGS_01,
                   ARGS_07,
                   ARGS_08,
                   ARGS_09,
-                  ARGS_10)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+                  ARGS_10)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
-    }
-    else {
-        copyInit(typename AllocTraits::Type(alloc), other);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
-    }
-    else {
-        copyInit(typename AllocTraits::Type(alloc), other);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
-    }
-    else {
-        copyInit(typename AllocTraits::Type(alloc), other);
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class ALLOC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
-{
-    typedef Function_AllocTraits<ALLOC> AllocTraits;
-
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
-    }
-    else {
-        copyInit(typename AllocTraits::Type(alloc), other);
-    }
-}
-
-
-#endif
 
 template <class RET>
 inline
@@ -17377,153 +11743,13 @@ bsl::function<RET(ARGS_01,
     }
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::~function()
-{
-    BSLS_ASSERT(invoker() || ! d_funcManager_p);
-    BSLS_ASSERT(d_allocator_p);
-
-    if (d_funcManager_p) {
-        d_funcManager_p(e_DESTROY, this, PtrOrSize_t());
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::~function()
-{
-    BSLS_ASSERT(invoker() || ! d_funcManager_p);
-    BSLS_ASSERT(d_allocator_p);
-
-    if (d_funcManager_p) {
-        d_funcManager_p(e_DESTROY, this, PtrOrSize_t());
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::~function()
-{
-    BSLS_ASSERT(invoker() || ! d_funcManager_p);
-    BSLS_ASSERT(d_allocator_p);
-
-    if (d_funcManager_p) {
-        d_funcManager_p(e_DESTROY, this, PtrOrSize_t());
-    }
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::~function()
-{
-    BSLS_ASSERT(invoker() || ! d_funcManager_p);
-    BSLS_ASSERT(d_allocator_p);
-
-    if (d_funcManager_p) {
-        d_funcManager_p(e_DESTROY, this, PtrOrSize_t());
-    }
-}
-
 
 template <class RET>
 inline
 bsl::function<RET()>&
 bsl::function<RET()>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17533,7 +11759,7 @@ inline
 bsl::function<RET(ARGS_01)>&
 bsl::function<RET(ARGS_01)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17546,7 +11772,7 @@ bsl::function<RET(ARGS_01,
 bsl::function<RET(ARGS_01,
                   ARGS_02)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17562,7 +11788,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17581,7 +11807,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_03,
                   ARGS_04)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17603,7 +11829,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_04,
                   ARGS_05)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17628,7 +11854,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_05,
                   ARGS_06)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17656,7 +11882,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_06,
                   ARGS_07)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17687,7 +11913,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_07,
                   ARGS_08)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17721,7 +11947,7 @@ bsl::function<RET(ARGS_01,
                   ARGS_08,
                   ARGS_09)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
@@ -17758,596 +11984,23 @@ bsl::function<RET(ARGS_01,
                   ARGS_09,
                   ARGS_10)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator=(const function& rhs)
-{
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator=(const function& rhs)
-{
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator=(const function& rhs)
-{
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator=(const function& rhs)
-{
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
-
-    return *this;
-}
-
-
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-
-template <class RET>
-inline
-bsl::function<RET()>&
-bsl::function<RET()>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01>
-inline
-bsl::function<RET(ARGS_01)>&
-bsl::function<RET(ARGS_01)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator=(function& rhs)
-{
-    return operator=(const_cast<const function&>(rhs));
 }
 
 
 template <class RET>
 inline
-bsl::function<RET()>&
-bsl::function<RET()>::operator=(function&& rhs)
+bsl::function<RET()>& bsl::function<RET()>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18355,14 +12008,15 @@ bsl::function<RET()>::operator=(function&& rhs)
 
 template <class RET, class ARGS_01>
 inline
-bsl::function<RET(ARGS_01)>&
-bsl::function<RET(ARGS_01)>::operator=(function&& rhs)
+bsl::function<RET(ARGS_01)>& bsl::function<RET(ARGS_01)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18372,15 +12026,16 @@ template <class RET, class ARGS_01,
                      class ARGS_02>
 inline
 bsl::function<RET(ARGS_01,
-                  ARGS_02)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>::operator=(function&& rhs)
+                  ARGS_02)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18392,16 +12047,17 @@ template <class RET, class ARGS_01,
 inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
-                  ARGS_03)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>::operator=(function&& rhs)
+                  ARGS_03)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18415,17 +12071,18 @@ inline
 bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
-                  ARGS_04)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>::operator=(function&& rhs)
+                  ARGS_04)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18441,18 +12098,19 @@ bsl::function<RET(ARGS_01,
                   ARGS_02,
                   ARGS_03,
                   ARGS_04,
-                  ARGS_05)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>::operator=(function&& rhs)
+                  ARGS_05)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18470,19 +12128,20 @@ bsl::function<RET(ARGS_01,
                   ARGS_03,
                   ARGS_04,
                   ARGS_05,
-                  ARGS_06)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>::operator=(function&& rhs)
+                  ARGS_06)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05,
+                                               ARGS_06)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18502,20 +12161,21 @@ bsl::function<RET(ARGS_01,
                   ARGS_04,
                   ARGS_05,
                   ARGS_06,
-                  ARGS_07)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>::operator=(function&& rhs)
+                  ARGS_07)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05,
+                                               ARGS_06,
+                                               ARGS_07)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18537,21 +12197,22 @@ bsl::function<RET(ARGS_01,
                   ARGS_05,
                   ARGS_06,
                   ARGS_07,
-                  ARGS_08)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>::operator=(function&& rhs)
+                  ARGS_08)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05,
+                                               ARGS_06,
+                                               ARGS_07,
+                                               ARGS_08)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18575,22 +12236,23 @@ bsl::function<RET(ARGS_01,
                   ARGS_06,
                   ARGS_07,
                   ARGS_08,
-                  ARGS_09)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>::operator=(function&& rhs)
+                  ARGS_09)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05,
+                                               ARGS_06,
+                                               ARGS_07,
+                                               ARGS_08,
+                                               ARGS_09)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
@@ -18616,259 +12278,48 @@ bsl::function<RET(ARGS_01,
                   ARGS_07,
                   ARGS_08,
                   ARGS_09,
-                  ARGS_10)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>::operator=(function&& rhs)
+                  ARGS_10)>& bsl::function<RET(ARGS_01,
+                                               ARGS_02,
+                                               ARGS_03,
+                                               ARGS_04,
+                                               ARGS_05,
+                                               ARGS_06,
+                                               ARGS_07,
+                                               ARGS_08,
+                                               ARGS_09,
+                                               ARGS_10)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator=(function&& rhs)
-{
-    if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
-    }
-    else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
-    }
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator=(function&& rhs)
-{
-    if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
-    }
-    else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
-    }
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator=(function&& rhs)
-{
-    if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
-    }
-    else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
-    }
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator=(function&& rhs)
-{
-    if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
-    }
-    else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
-    }
-
-    return *this;
-}
-
-
-#endif
 
 template <class RET>
 template<class FUNC>
 inline
-bsl::function<RET()>&
-bsl::function<RET()>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET()>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -18877,40 +12328,26 @@ bsl::function<RET()>::operator=(
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01)>&
-bsl::function<RET(ARGS_01)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -18919,43 +12356,28 @@ bsl::function<RET(ARGS_01)>::operator=(
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
                      class ARGS_02>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -18964,8 +12386,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -18973,37 +12393,23 @@ template <class RET, class ARGS_01,
                      class ARGS_03>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19012,8 +12418,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19022,39 +12426,24 @@ template <class RET, class ARGS_01,
                      class ARGS_04>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19063,8 +12452,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19074,41 +12461,25 @@ template <class RET, class ARGS_01,
                      class ARGS_05>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19117,8 +12488,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19129,43 +12498,26 @@ template <class RET, class ARGS_01,
                      class ARGS_06>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05,
+                       ARGS_06)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19174,8 +12526,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19187,45 +12537,27 @@ template <class RET, class ARGS_01,
                      class ARGS_07>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05,
+                       ARGS_06,
+                       ARGS_07)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19234,8 +12566,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19248,47 +12578,28 @@ template <class RET, class ARGS_01,
                      class ARGS_08>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05,
+                       ARGS_06,
+                       ARGS_07,
+                       ARGS_08)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19297,8 +12608,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19312,49 +12621,29 @@ template <class RET, class ARGS_01,
                      class ARGS_09>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05,
+                       ARGS_06,
+                       ARGS_07,
+                       ARGS_08,
+                       ARGS_09)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19363,8 +12652,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class ARGS_01,
@@ -19379,51 +12666,30 @@ template <class RET, class ARGS_01,
                      class ARGS_10>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS_01,
+                       ARGS_02,
+                       ARGS_03,
+                       ARGS_04,
+                       ARGS_05,
+                       ARGS_06,
+                       ARGS_07,
+                       ARGS_08,
+                       ARGS_09,
+                       ARGS_10)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -19432,314 +12698,6 @@ bsl::function<RET(ARGS_01,
     }
 
     setInvoker(invoker_p);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
-{
-    Function_Rep tempRep;
-
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
-
-    Invoker *invoker_p = invokerForFunc(func);
-    tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
-
-    this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
-
-    if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
-    }
-
-    tempRep.swap(*this);
-    if (tempRep.d_funcManager_p) {
-        tempRep.d_funcManager_p(e_DESTROY, &tempRep, PtrOrSize_t());
-    }
-
-    setInvoker(invoker_p);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
-{
-    Function_Rep tempRep;
-
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
-
-    Invoker *invoker_p = invokerForFunc(func);
-    tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
-
-    this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
-
-    if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
-    }
-
-    tempRep.swap(*this);
-    if (tempRep.d_funcManager_p) {
-        tempRep.d_funcManager_p(e_DESTROY, &tempRep, PtrOrSize_t());
-    }
-
-    setInvoker(invoker_p);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
-{
-    Function_Rep tempRep;
-
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
-
-    Invoker *invoker_p = invokerForFunc(func);
-    tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
-
-    this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
-
-    if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
-    }
-
-    tempRep.swap(*this);
-    if (tempRep.d_funcManager_p) {
-        tempRep.d_funcManager_p(e_DESTROY, &tempRep, PtrOrSize_t());
-    }
-
-    setInvoker(invoker_p);
-
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
-{
-    Function_Rep tempRep;
-
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
-
-    Invoker *invoker_p = invokerForFunc(func);
-    tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
-
-    this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
-
-    if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
-    }
-
-    tempRep.swap(*this);
-    if (tempRep.d_funcManager_p) {
-        tempRep.d_funcManager_p(e_DESTROY, &tempRep, PtrOrSize_t());
-    }
-
-    setInvoker(invoker_p);
-
-    return *this;
 }
 
 
@@ -19982,184 +12940,6 @@ bsl::function<RET(ARGS_01,
                   ARGS_08,
                   ARGS_09,
                   ARGS_10)>::operator=(nullptr_t)
-{
-    setInvoker(NULL);
-    makeEmpty();
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator=(nullptr_t)
-{
-    setInvoker(NULL);
-    makeEmpty();
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator=(nullptr_t)
-{
-    setInvoker(NULL);
-    makeEmpty();
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator=(nullptr_t)
-{
-    setInvoker(NULL);
-    makeEmpty();
-    return *this;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>&
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator=(nullptr_t)
 {
     setInvoker(NULL);
     makeEmpty();
@@ -20602,312 +13382,6 @@ RET bsl::function<RET(ARGS_01,
 #endif
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11)>::operator()(ARGS_01 args_01,
-                                            ARGS_02 args_02,
-                                            ARGS_03 args_03,
-                                            ARGS_04 args_04,
-                                            ARGS_05 args_05,
-                                            ARGS_06 args_06,
-                                            ARGS_07 args_07,
-                                            ARGS_08 args_08,
-                                            ARGS_09 args_09,
-                                            ARGS_10 args_10,
-                                            ARGS_11 args_11) const
-{
-#ifdef BDE_BUILD_TARGET_EXC
-
-    if (invoker()) {
-        return invoker()(this, args_01,
-                               args_02,
-                               args_03,
-                               args_04,
-                               args_05,
-                               args_06,
-                               args_07,
-                               args_08,
-                               args_09,
-                               args_10,
-                               args_11);
-    }
-    else {
-        BSLS_THROW(bad_function_call());
-    }
-
-#else
-    BSLS_ASSERT_OPT(invoker());
-    return invoker()(this, args_01,
-                           args_02,
-                           args_03,
-                           args_04,
-                           args_05,
-                           args_06,
-                           args_07,
-                           args_08,
-                           args_09,
-                           args_10,
-                           args_11);
-#endif
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12)>::operator()(ARGS_01 args_01,
-                                            ARGS_02 args_02,
-                                            ARGS_03 args_03,
-                                            ARGS_04 args_04,
-                                            ARGS_05 args_05,
-                                            ARGS_06 args_06,
-                                            ARGS_07 args_07,
-                                            ARGS_08 args_08,
-                                            ARGS_09 args_09,
-                                            ARGS_10 args_10,
-                                            ARGS_11 args_11,
-                                            ARGS_12 args_12) const
-{
-#ifdef BDE_BUILD_TARGET_EXC
-
-    if (invoker()) {
-        return invoker()(this, args_01,
-                               args_02,
-                               args_03,
-                               args_04,
-                               args_05,
-                               args_06,
-                               args_07,
-                               args_08,
-                               args_09,
-                               args_10,
-                               args_11,
-                               args_12);
-    }
-    else {
-        BSLS_THROW(bad_function_call());
-    }
-
-#else
-    BSLS_ASSERT_OPT(invoker());
-    return invoker()(this, args_01,
-                           args_02,
-                           args_03,
-                           args_04,
-                           args_05,
-                           args_06,
-                           args_07,
-                           args_08,
-                           args_09,
-                           args_10,
-                           args_11,
-                           args_12);
-#endif
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13)>::operator()(ARGS_01 args_01,
-                                            ARGS_02 args_02,
-                                            ARGS_03 args_03,
-                                            ARGS_04 args_04,
-                                            ARGS_05 args_05,
-                                            ARGS_06 args_06,
-                                            ARGS_07 args_07,
-                                            ARGS_08 args_08,
-                                            ARGS_09 args_09,
-                                            ARGS_10 args_10,
-                                            ARGS_11 args_11,
-                                            ARGS_12 args_12,
-                                            ARGS_13 args_13) const
-{
-#ifdef BDE_BUILD_TARGET_EXC
-
-    if (invoker()) {
-        return invoker()(this, args_01,
-                               args_02,
-                               args_03,
-                               args_04,
-                               args_05,
-                               args_06,
-                               args_07,
-                               args_08,
-                               args_09,
-                               args_10,
-                               args_11,
-                               args_12,
-                               args_13);
-    }
-    else {
-        BSLS_THROW(bad_function_call());
-    }
-
-#else
-    BSLS_ASSERT_OPT(invoker());
-    return invoker()(this, args_01,
-                           args_02,
-                           args_03,
-                           args_04,
-                           args_05,
-                           args_06,
-                           args_07,
-                           args_08,
-                           args_09,
-                           args_10,
-                           args_11,
-                           args_12,
-                           args_13);
-#endif
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-RET bsl::function<RET(ARGS_01,
-                      ARGS_02,
-                      ARGS_03,
-                      ARGS_04,
-                      ARGS_05,
-                      ARGS_06,
-                      ARGS_07,
-                      ARGS_08,
-                      ARGS_09,
-                      ARGS_10,
-                      ARGS_11,
-                      ARGS_12,
-                      ARGS_13,
-                      ARGS_14)>::operator()(ARGS_01 args_01,
-                                            ARGS_02 args_02,
-                                            ARGS_03 args_03,
-                                            ARGS_04 args_04,
-                                            ARGS_05 args_05,
-                                            ARGS_06 args_06,
-                                            ARGS_07 args_07,
-                                            ARGS_08 args_08,
-                                            ARGS_09 args_09,
-                                            ARGS_10 args_10,
-                                            ARGS_11 args_11,
-                                            ARGS_12 args_12,
-                                            ARGS_13 args_13,
-                                            ARGS_14 args_14) const
-{
-#ifdef BDE_BUILD_TARGET_EXC
-
-    if (invoker()) {
-        return invoker()(this, args_01,
-                               args_02,
-                               args_03,
-                               args_04,
-                               args_05,
-                               args_06,
-                               args_07,
-                               args_08,
-                               args_09,
-                               args_10,
-                               args_11,
-                               args_12,
-                               args_13,
-                               args_14);
-    }
-    else {
-        BSLS_THROW(bad_function_call());
-    }
-
-#else
-    BSLS_ASSERT_OPT(invoker());
-    return invoker()(this, args_01,
-                           args_02,
-                           args_03,
-                           args_04,
-                           args_05,
-                           args_06,
-                           args_07,
-                           args_08,
-                           args_09,
-                           args_10,
-                           args_11,
-                           args_12,
-                           args_13,
-                           args_14);
-#endif
-}
-
 
 
 #ifdef BSLS_COMPILERFEATURES_SUPPORT_OPERATOR_EXPLICIT
@@ -21078,127 +13552,8 @@ bsl::function<RET(ARGS_01,
     return invoker();
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11)>::operator bool() const BSLS_NOTHROW_SPEC
-{
-    return invoker();
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12)>::operator bool() const BSLS_NOTHROW_SPEC
-{
-    return invoker();
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13)>::operator bool() const BSLS_NOTHROW_SPEC
-{
-    return invoker();
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bsl::function<RET(ARGS_01,
-                  ARGS_02,
-                  ARGS_03,
-                  ARGS_04,
-                  ARGS_05,
-                  ARGS_06,
-                  ARGS_07,
-                  ARGS_08,
-                  ARGS_09,
-                  ARGS_10,
-                  ARGS_11,
-                  ARGS_12,
-                  ARGS_13,
-                  ARGS_14)>::operator bool() const BSLS_NOTHROW_SPEC
-{
-    return invoker();
-}
-
 #endif
+
 
 template <class RET>
 inline
@@ -21373,130 +13728,6 @@ bool bsl::operator==(const bsl::function<RET(ARGS_01,
                                              ARGS_08,
                                              ARGS_09,
                                              ARGS_10)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bool bsl::operator==(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bool bsl::operator==(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bool bsl::operator==(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bool bsl::operator==(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13,
-                                             ARGS_14)>& f,
                      bsl::nullptr_t) BSLS_NOTHROW_SPEC
 {
     return !f;
@@ -21677,130 +13908,6 @@ bool bsl::operator==(bsl::nullptr_t,
                                              ARGS_08,
                                              ARGS_09,
                                              ARGS_10)>& f) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bool bsl::operator==(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11)>& f) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bool bsl::operator==(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12)>& f) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bool bsl::operator==(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13)>& f) BSLS_NOTHROW_SPEC
-{
-    return !f;
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bool bsl::operator==(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13,
-                                             ARGS_14)>& f) BSLS_NOTHROW_SPEC
 {
     return !f;
 }
@@ -21984,130 +14091,6 @@ bool bsl::operator!=(const bsl::function<RET(ARGS_01,
     return static_cast<bool>(f);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bool bsl::operator!=(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bool bsl::operator!=(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bool bsl::operator!=(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bool bsl::operator!=(const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13,
-                                             ARGS_14)>& f,
-                     bsl::nullptr_t) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
 
 template <class RET>
 inline
@@ -22283,130 +14266,6 @@ bool bsl::operator!=(bsl::nullptr_t,
                                              ARGS_08,
                                              ARGS_09,
                                              ARGS_10)>& f) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-bool bsl::operator!=(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11)>& f) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-bool bsl::operator!=(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12)>& f) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-bool bsl::operator!=(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13)>& f) BSLS_NOTHROW_SPEC
-{
-    return static_cast<bool>(f);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-bool bsl::operator!=(bsl::nullptr_t,
-                     const bsl::function<RET(ARGS_01,
-                                             ARGS_02,
-                                             ARGS_03,
-                                             ARGS_04,
-                                             ARGS_05,
-                                             ARGS_06,
-                                             ARGS_07,
-                                             ARGS_08,
-                                             ARGS_09,
-                                             ARGS_10,
-                                             ARGS_11,
-                                             ARGS_12,
-                                             ARGS_13,
-                                             ARGS_14)>& f) BSLS_NOTHROW_SPEC
 {
     return static_cast<bool>(f);
 }
@@ -22624,172 +14483,6 @@ void bsl::swap(bsl::function<RET(ARGS_01,
     a.swap(b);
 }
 
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11>
-inline
-void bsl::swap(bsl::function<RET(ARGS_01,
-                                 ARGS_02,
-                                 ARGS_03,
-                                 ARGS_04,
-                                 ARGS_05,
-                                 ARGS_06,
-                                 ARGS_07,
-                                 ARGS_08,
-                                 ARGS_09,
-                                 ARGS_10,
-                                 ARGS_11)>& a, bsl::function<RET(ARGS_01,
-                                                                 ARGS_02,
-                                                                 ARGS_03,
-                                                                 ARGS_04,
-                                                                 ARGS_05,
-                                                                 ARGS_06,
-                                                                 ARGS_07,
-                                                                 ARGS_08,
-                                                                 ARGS_09,
-                                                                 ARGS_10,
-                                                                 ARGS_11)>& b)
-{
-    a.swap(b);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12>
-inline
-void bsl::swap(bsl::function<RET(ARGS_01,
-                                 ARGS_02,
-                                 ARGS_03,
-                                 ARGS_04,
-                                 ARGS_05,
-                                 ARGS_06,
-                                 ARGS_07,
-                                 ARGS_08,
-                                 ARGS_09,
-                                 ARGS_10,
-                                 ARGS_11,
-                                 ARGS_12)>& a, bsl::function<RET(ARGS_01,
-                                                                 ARGS_02,
-                                                                 ARGS_03,
-                                                                 ARGS_04,
-                                                                 ARGS_05,
-                                                                 ARGS_06,
-                                                                 ARGS_07,
-                                                                 ARGS_08,
-                                                                 ARGS_09,
-                                                                 ARGS_10,
-                                                                 ARGS_11,
-                                                                 ARGS_12)>& b)
-{
-    a.swap(b);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13>
-inline
-void bsl::swap(bsl::function<RET(ARGS_01,
-                                 ARGS_02,
-                                 ARGS_03,
-                                 ARGS_04,
-                                 ARGS_05,
-                                 ARGS_06,
-                                 ARGS_07,
-                                 ARGS_08,
-                                 ARGS_09,
-                                 ARGS_10,
-                                 ARGS_11,
-                                 ARGS_12,
-                                 ARGS_13)>& a, bsl::function<RET(ARGS_01,
-                                                                 ARGS_02,
-                                                                 ARGS_03,
-                                                                 ARGS_04,
-                                                                 ARGS_05,
-                                                                 ARGS_06,
-                                                                 ARGS_07,
-                                                                 ARGS_08,
-                                                                 ARGS_09,
-                                                                 ARGS_10,
-                                                                 ARGS_11,
-                                                                 ARGS_12,
-                                                                 ARGS_13)>& b)
-{
-    a.swap(b);
-}
-
-template <class RET, class ARGS_01,
-                     class ARGS_02,
-                     class ARGS_03,
-                     class ARGS_04,
-                     class ARGS_05,
-                     class ARGS_06,
-                     class ARGS_07,
-                     class ARGS_08,
-                     class ARGS_09,
-                     class ARGS_10,
-                     class ARGS_11,
-                     class ARGS_12,
-                     class ARGS_13,
-                     class ARGS_14>
-inline
-void bsl::swap(bsl::function<RET(ARGS_01,
-                                 ARGS_02,
-                                 ARGS_03,
-                                 ARGS_04,
-                                 ARGS_05,
-                                 ARGS_06,
-                                 ARGS_07,
-                                 ARGS_08,
-                                 ARGS_09,
-                                 ARGS_10,
-                                 ARGS_11,
-                                 ARGS_12,
-                                 ARGS_13,
-                                 ARGS_14)>& a, bsl::function<RET(ARGS_01,
-                                                                 ARGS_02,
-                                                                 ARGS_03,
-                                                                 ARGS_04,
-                                                                 ARGS_05,
-                                                                 ARGS_06,
-                                                                 ARGS_07,
-                                                                 ARGS_08,
-                                                                 ARGS_09,
-                                                                 ARGS_10,
-                                                                 ARGS_11,
-                                                                 ARGS_12,
-                                                                 ARGS_13,
-                                                                 ARGS_14)>& b)
-{
-    a.swap(b);
-}
-
 #else
 // The generated code below is a workaround for the absence of perfect
 // forwarding in some compilers.
@@ -22802,8 +14495,9 @@ RET bsl::function<RET(ARGS...)>::functionPtrInvoker(const Function_Rep *rep,
 {
     FUNC f = reinterpret_cast<FUNC>(rep->d_objbuf.d_func_p);
 
-    return static_cast<RET>(f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS>::
-                              forwardToTarget(args)...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(BloombergLP::bslmf::ForwardingTypeUtil<ARGS>::
+                    forwardToTarget(args)...));
 }
 
 template <class RET, class... ARGS>
@@ -22829,7 +14523,8 @@ RET bsl::function<RET(ARGS...)>::inplaceFunctorInvoker(const Function_Rep *rep,
 {
     FUNC& f = reinterpret_cast<FUNC&>(rep->d_objbuf);
 
-    return static_cast<RET>(f(args...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args...));
 }
 
 template <class RET, class... ARGS>
@@ -22840,7 +14535,8 @@ bsl::function<RET(ARGS...)>::outofplaceFunctorInvoker(const Function_Rep *rep,
                typename BloombergLP::bslmf::ForwardingType<ARGS>::Type... args)
 {
     FUNC& f = *reinterpret_cast<FUNC*>(rep->d_objbuf.d_object_p);
-    return static_cast<RET>(f(args...));
+    return BSLSTL_FUNCTION_CAST_RESULT(
+                  f(args...));
 }
 
 template <class RET, class... ARGS>
@@ -22893,26 +14589,6 @@ bsl::function<RET(ARGS...)>::function(const function& other)
 }
 
 template <class RET, class... ARGS>
-template<class FUNC>
-inline
-bsl::function<RET(ARGS...)>::function(FUNC func)
-{
-    using namespace BloombergLP;
-
-    setInvoker(invokerForFunc(func));
-
-    std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
-
-    initRep(sooFuncSize, bslma::Default::defaultAllocator(),
-            integral_constant<AllocCategory, e_BSLMA_ALLOC_PTR>());
-
-    if (invoker()) {
-        d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
-    }
-}
-
-template <class RET, class... ARGS>
 template<class ALLOC>
 inline
 bsl::function<RET(ARGS...)>::function(allocator_arg_t, const ALLOC& alloc)
@@ -22947,14 +14623,12 @@ bsl::function<RET(ARGS...)>::function(allocator_arg_t,
 
 template <class RET, class... ARGS>
 template<class FUNC, class ALLOC>
-inline
-bsl::function<RET(ARGS...)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      FUNC         func)
+inline void
+bsl::function<RET(ARGS...)>::initFromTarget(FUNC *func, const ALLOC& alloc)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    setInvoker(invokerForFunc(func));
+    setInvoker(invokerForFunc(*func));
 
     std::size_t sooFuncSize = invoker() ? Soo::SooFuncSize<FUNC>::VALUE : 0;
 
@@ -22963,40 +14637,41 @@ bsl::function<RET(ARGS...)>::function(allocator_arg_t,
 
     if (invoker()) {
         d_funcManager_p = getFunctionManager<FUNC>();
-        d_funcManager_p(e_MOVE_CONSTRUCT, this, &func);
+        d_funcManager_p(e_MOVE_CONSTRUCT, this, func);
     }
     else {
         d_funcManager_p = NULL;
     }
 }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-
 template <class RET, class... ARGS>
 inline
-bsl::function<RET(ARGS...)>::function(function&& other)
+bsl::function<RET(ARGS...)>::function(
+                                BloombergLP::bslmf::MovableRef<function> other)
 {
-    moveInit(other);
+    function& lvalue = other;
+    moveInit(lvalue);
 }
 
 template <class RET, class... ARGS>
-template<class ALLOC>
+template <class ALLOC>
 inline
-bsl::function<RET(ARGS...)>::function(allocator_arg_t,
-                                      const ALLOC& alloc,
-                                      function&&   other)
+bsl::function<RET(ARGS...)>::function(
+    allocator_arg_t,
+    const ALLOC&                             alloc,
+    BloombergLP::bslmf::MovableRef<function> other)
 {
     typedef Function_AllocTraits<ALLOC> AllocTraits;
 
-    if (other.equalAlloc(alloc, typename AllocTraits::Category())) {
-        moveInit(other);
+    function& lvalue = other;
+
+    if (lvalue.equalAlloc(alloc, typename AllocTraits::Category())) {
+        moveInit(lvalue);
     }
     else {
-        copyInit(typename AllocTraits::Type(alloc), other);
+        copyInit(typename AllocTraits::Type(alloc), lvalue);
     }
 }
-
-#endif
 
 template <class RET, class... ARGS>
 inline
@@ -23015,68 +14690,45 @@ inline
 bsl::function<RET(ARGS...)>&
 bsl::function<RET(ARGS...)>::operator=(const function& rhs)
 {
-    Function_Rep::assign(const_cast<function*>(&rhs), e_COPY_CONSTRUCT);
+    Function_Rep::assignRep(e_COPY_CONSTRUCT, const_cast<function*>(&rhs));
 
     return *this;
 }
 
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-
 template <class RET, class... ARGS>
 inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(function& rhs)
+bsl::function<RET(ARGS...)>& bsl::function<RET(ARGS...)>::
+operator=(BloombergLP::bslmf::MovableRef<function> rhs)
 {
-    return operator=(const_cast<const function&>(rhs));
-}
-
-template <class RET, class... ARGS>
-inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(function&& rhs)
-{
+    function& lvalue = rhs;
     if (d_allocManager_p(e_IS_EQUAL, this, rhs.d_allocator_p).asSize_t()) {
-        this->swap(rhs);
+        this->swap(lvalue);
     }
     else {
-        Function_Rep::assign(&rhs, e_MOVE_CONSTRUCT);
+        Function_Rep::assignRep(e_MOVE_CONSTRUCT, &lvalue);
     }
 
     return *this;
 }
-
-#endif
 
 template <class RET, class... ARGS>
 template<class FUNC>
 inline
-bsl::function<RET(ARGS...)>&
-bsl::function<RET(ARGS...)>::operator=(
-                                  BSLS_COMPILERFEATURES_FORWARD_REF(FUNC) func)
+void bsl::function<RET(ARGS...)>::assignTarget(ManagerOpCode  moveOrCopy,
+                                               FUNC          *func)
 {
     Function_Rep tempRep;
 
-    typedef typename bsl::remove_const<
-            typename bsl::remove_reference<FUNC>::type
-        >::type FuncType;
+    typedef typename bsl::remove_const<FUNC>::type FuncType;
 
-    Invoker *invoker_p = invokerForFunc(func);
+    Invoker *invoker_p = invokerForFunc(*func);
     tempRep.d_funcManager_p = invoker_p ? getFunctionManager<FuncType>() :NULL;
 
     this->d_allocManager_p(e_INIT_REP, &tempRep, this->d_allocator_p);
 
     if (tempRep.d_funcManager_p) {
-        FuncType *funcAddr = const_cast<FuncType*>(&func);
-#ifdef BSLS_COMPILERFEATURES_SUPPORT_RVALUE_REFERENCES
-        if (bsl::is_rvalue_reference<BSLS_COMPILERFEATURES_FORWARD_REF(FUNC)
-                                     >::value) {
-            tempRep.d_funcManager_p(e_MOVE_CONSTRUCT, &tempRep, funcAddr);
-        }
-        else
-#endif
-        {
-            tempRep.d_funcManager_p(e_COPY_CONSTRUCT, &tempRep, funcAddr);
-        }
+        FuncType *funcAddr = const_cast<FuncType*>(func);
+        tempRep.d_funcManager_p(moveOrCopy, &tempRep, funcAddr);
     }
 
     tempRep.swap(*this);
@@ -23085,8 +14737,6 @@ bsl::function<RET(ARGS...)>::operator=(
     }
 
     setInvoker(invoker_p);
-
-    return *this;
 }
 
 template <class RET, class... ARGS>
@@ -23129,6 +14779,7 @@ bsl::function<RET(ARGS...)>::operator bool() const BSLS_NOTHROW_SPEC
 }
 #endif
 
+
 template <class RET, class... ARGS>
 inline
 bool bsl::operator==(const bsl::function<RET(ARGS...)>& f,
@@ -23170,6 +14821,20 @@ void bsl::swap(bsl::function<RET(ARGS...)>& a, bsl::function<RET(ARGS...)>& b)
 
 // }}} END GENERATED CODE
 #endif
+
+// TRAITS
+
+namespace BloombergLP {
+namespace bslmf {
+
+template <class FUNC>
+struct IsBitwiseMoveable<bsl::Function_NothrowWrapper<FUNC> >
+   : IsBitwiseMoveable<FUNC>::type
+{
+};
+
+} // close namespace bslmf
+} // close namespace BloombergLP
 
 #endif // ! defined(INCLUDED_BSLSTL_FUNCTION)
 

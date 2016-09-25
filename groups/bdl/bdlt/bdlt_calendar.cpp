@@ -14,6 +14,10 @@ BSLS_IDENT_RCSID(bdlt_calendar_cpp,"$Id$ $CSID$")
 namespace BloombergLP {
 namespace bdlt {
 
+// The implementation requires that return value for an unseccessful
+// 'bdlc::BitArray::find*', when cast to an 'int', is -1.
+BSLMF_ASSERT(-1 == static_cast<int>(bdlc::BitArray::k_INVALID_INDEX));
+
                               // --------------
                               // class Calendar
                               // --------------
@@ -90,7 +94,8 @@ void Calendar::synchronizeCache()
 // PRIVATE ACCESSORS
 bool Calendar::isCacheSynchronized() const
 {
-    if (d_packedCalendar.length() != d_nonBusinessDays.length()) {
+    if (d_packedCalendar.length() !=
+                                static_cast<int>(d_nonBusinessDays.length())) {
         return false;                                                 // RETURN
     }
 
@@ -103,13 +108,14 @@ bool Calendar::isCacheSynchronized() const
     PackedCalendar::BusinessDayConstIterator endIter =
                                             d_packedCalendar.endBusinessDays();
 
-    int offset = d_nonBusinessDays.find0AtMinIndex(0);
+    int offset = static_cast<int>(d_nonBusinessDays.find0AtMinIndex(0));
     while (iter != endIter) {
         if (offset != *iter - d_packedCalendar.firstDate()) {
             return false;                                             // RETURN
         }
         ++iter;
-        offset = d_nonBusinessDays.find0AtMinIndex(offset + 1);
+        offset = static_cast<int>(
+                                d_nonBusinessDays.find0AtMinIndex(offset + 1));
     }
 
     return 0 > offset;
@@ -245,10 +251,15 @@ void Calendar::addWeekendDay(DayOfWeek::Enum weekendDay)
 
 void Calendar::addWeekendDays(const DayOfWeekSet& weekendDays)
 {
-    for (DayOfWeekSet::iterator it = weekendDays.begin();
-         it != weekendDays.end();
-         ++it) {
-        addWeekendDay(*it);
+    if (!weekendDays.isEmpty()) {
+        for (DayOfWeekSet::iterator it = weekendDays.begin();
+             it != weekendDays.end();
+             ++it) {
+            addWeekendDay(*it);
+        }
+    }
+    else {
+        d_packedCalendar.addWeekendDays(weekendDays);
     }
 }
 
@@ -308,7 +319,8 @@ int Calendar::getNextBusinessDay(Date        *nextBusinessDay,
 
     int offset = date - firstDate();
     while (nth) {
-        offset = d_nonBusinessDays.find0AtMinIndex(offset + 1);
+        offset = static_cast<int>(
+                                d_nonBusinessDays.find0AtMinIndex(offset + 1));
         if (0 > offset) {
             return e_FAILURE;                                         // RETURN
         }
@@ -318,6 +330,7 @@ int Calendar::getNextBusinessDay(Date        *nextBusinessDay,
 
     return e_SUCCESS;
 }
+
 
                    // -----------------------------------
                    // class Calendar_BusinessDayConstIter
@@ -346,14 +359,16 @@ Calendar_BusinessDayConstIter::Calendar_BusinessDayConstIter(
         // Otherwise, advance the iterator to reference the next date so we can
         // find the next business day.
 
-        if (d_currentOffset == d_nonBusinessDays_p->length() - 1) {
+        if (d_currentOffset
+                      == static_cast<int>(d_nonBusinessDays_p->length()) - 1) {
             d_currentOffset = -1;
             return;                                                   // RETURN
         }
         ++d_currentOffset;
     }
 
-    d_currentOffset = d_nonBusinessDays_p->find0AtMinIndex(d_currentOffset);
+    d_currentOffset = static_cast<int>(
+                        d_nonBusinessDays_p->find0AtMinIndex(d_currentOffset));
     if (0 > d_currentOffset) {
         d_currentOffset = -1;
     }
@@ -363,7 +378,7 @@ Calendar_BusinessDayConstIter::Calendar_BusinessDayConstIter(
 }  // close enterprise namespace
 
 // ----------------------------------------------------------------------------
-// Copyright 2015 Bloomberg Finance L.P.
+// Copyright 2016 Bloomberg Finance L.P.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

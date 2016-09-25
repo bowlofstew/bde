@@ -671,6 +671,18 @@ BSLS_IDENT("$Id: $")
 #include <bslmf_typelist.h>
 #endif
 
+#ifndef INCLUDED_BSLX_INSTREAMFUNCTIONS
+#include <bslx_instreamfunctions.h>
+#endif
+
+#ifndef INCLUDED_BSLX_OUTSTREAMFUNCTIONS
+#include <bslx_outstreamfunctions.h>
+#endif
+
+#ifndef INCLUDED_BSLX_VERSIONFUNCTIONS
+#include <bslx_versionfunctions.h>
+#endif
+
 #ifndef INCLUDED_BSLS_ASSERT
 #include <bsls_assert.h>
 #endif
@@ -742,6 +754,8 @@ struct Variant_ReturnValueHelper {
     enum {
         value =
          sizeof(match<VISITOR>(0)) == sizeof(Variant_ReturnValueHelper_YesType)
+
+
     };
         // A 'value' of 'true' indicates 'VISITOR::ResultType' exists, and
         // 'false' otherwise.
@@ -5120,6 +5134,7 @@ struct Variant_SwapVisitor {
         bslalg::SwapUtil::swap(reinterpret_cast<TYPE *>(d_buffer_p), &value);
     }
 };
+
 
                     // ===========================
                     // struct Variant_PrintVisitor

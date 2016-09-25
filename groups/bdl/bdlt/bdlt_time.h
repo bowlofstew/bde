@@ -106,6 +106,10 @@ BSLS_IDENT("$Id: $")
 #include <bdlt_timeunitratio.h>
 #endif
 
+#ifndef INCLUDED_BSLH_HASH
+#include <bslh_hash.h>
+#endif
+
 #ifndef INCLUDED_BSLMF_INTEGRALCONSTANT
 #include <bslmf_integralconstant.h>
 #endif
@@ -156,6 +160,8 @@ class Time {
     friend bool operator<=(const Time&, const Time&);
     friend bool operator>=(const Time&, const Time&);
     friend bool operator> (const Time&, const Time&);
+    template <class HASHALG>
+    friend void hashAppend(HASHALG& hashAlg, const Time&);
 
   public:
     // CLASS METHODS
@@ -375,6 +381,12 @@ class Time {
 };
 
 // FREE OPERATORS
+template <class HASHALG>
+void hashAppend(HASHALG& hashAlg, const Time& object);
+    // Pass the specified 'object' to the specified 'hashAlg'.  This function
+    // integrates with the 'bslh' modular hashing system and effectively
+    // provides a 'bsl::hash' specialization for 'Time'.
+
 Time operator+(const Time& lhs, const DatetimeInterval& rhs);
     // Return a 'Time' value that is the sum of the specified 'lhs' time and
     // the specified 'rhs' datetime interval.
@@ -701,6 +713,15 @@ inline
 bsl::ostream& bdlt::operator<<(bsl::ostream& stream, const Time& time)
 {
     return time.print(stream, 0, -1);
+}
+
+// FREE FUNCTIONS
+template <class HASHALG>
+inline
+void bdlt::hashAppend(HASHALG& hashAlg, const Time& object)
+{
+    using ::BloombergLP::bslh::hashAppend;
+    hashAppend(hashAlg, object.d_milliseconds);
 }
 
 }  // close enterprise namespace

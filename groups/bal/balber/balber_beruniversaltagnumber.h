@@ -54,6 +54,7 @@ BSLS_IDENT("$Id: $")
 //                                     DEC              e_BER_INT
 //  float                              DEFAULT          e_BER_REAL
 //  double                             DEFAULT          e_BER_REAL
+//  bdldfp::Decimal64                  DEFAULT          e_BER_OCTET_STRING
 //  bsl::string                        DEFAULT          e_BER_UTF8_STRING
 //                                     TEXT             e_BER_UTF8_STRING
 //                                     BASE64           e_BER_OCTET_STRING
@@ -138,8 +139,16 @@ BSLS_IDENT("$Id: $")
 #include <bdlat_typecategory.h>
 #endif
 
+#ifndef INCLUDED_BDLDFP_DECIMAL
+#include <bdldfp_decimal.h>
+#endif
+
 #ifndef INCLUDED_BDLB_VARIANT
 #include <bdlb_variant.h>
+#endif
+
+#ifndef INCLUDED_BSLMF_ASSERT
+#include <bslmf_assert.h>
 #endif
 
 #ifndef INCLUDED_BSLS_ASSERT
@@ -295,6 +304,7 @@ class BerUniversalTagNumber_Imp {
                                            object, bdlat_TypeCategory::Simple);
     TagVal select(const float&             object, bdlat_TypeCategory::Simple);
     TagVal select(const double&            object, bdlat_TypeCategory::Simple);
+    TagVal select(const bdldfp::Decimal64& object, bdlat_TypeCategory::Simple);
     TagVal select(const bsl::string&       object, bdlat_TypeCategory::Simple);
     TagVal select(const bdlt::Date&        object, bdlat_TypeCategory::Simple);
     TagVal select(const bdlt::DateTz&      object, bdlat_TypeCategory::Simple);
@@ -308,7 +318,7 @@ class BerUniversalTagNumber_Imp {
 
     TagVal select(const bsl::vector<char>& object, bdlat_TypeCategory::Array);
 
-                        //  ** By Catetory **
+                        //  ** By Category **
 
     template <typename TYPE>
     TagVal select(const TYPE& object, bdlat_TypeCategory::CustomizedType);
@@ -663,6 +673,18 @@ BerUniversalTagNumber_Imp::select(const double&              ,
 
 inline
 BerUniversalTagNumber::Value
+BerUniversalTagNumber_Imp::select(const bdldfp::Decimal64&,
+                                  bdlat_TypeCategory::Simple)
+{
+    BSLS_ASSERT_SAFE(
+          FMode::e_DEFAULT == (d_formattingMode & FMode::e_TYPE_MASK)
+       || FMode::e_DEC     == (d_formattingMode & FMode::e_TYPE_MASK));
+
+    return BerUniversalTagNumber::e_BER_OCTET_STRING;
+}
+
+inline
+BerUniversalTagNumber::Value
 BerUniversalTagNumber_Imp::select(const bsl::string&        ,
                                   bdlat_TypeCategory::Simple)
 {
@@ -759,7 +781,7 @@ BerUniversalTagNumber_Imp::select(const bsl::vector<char>&  ,
     return BerUniversalTagNumber::e_BER_OCTET_STRING;
 }
 
-                        //  ** By Catetory **
+                        //  ** By Category **
 
 template <typename TYPE>
 inline

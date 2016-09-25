@@ -126,12 +126,14 @@ using bsl::flush;
 // [06] void cancelAllClocks(bool wait=false);
 //
 // ACCESSORS
+// [25] bsls::SystemClockType::Enum clockType();
 // ----------------------------------------------------------------------------
 // [01] BREATHING TEST
 // [07] TESTING METHODS INVOCATIONS FROM THE DISPATCHER THREAD
 // [10] TESTING CONCURRENT SCHEDULING AND CANCELLING
 // [11] TESTING CONCURRENT SCHEDULING AND CANCELLING-ALL
-// [25] USAGE EXAMPLE
+// [26] CLOCK-REPLACEMENT BREATHING TEST
+// [27] USAGE EXAMPLE
 
 // ============================================================================
 //                     STANDARD BDE ASSERT TEST FUNCTION
@@ -2638,7 +2640,7 @@ int main(int argc, char *argv[])
     bsl::cout << "TEST " << __FILE__ << " CASE " << test << bsl::endl;
 
     switch (test) { case 0:  // Zero is always the leading case.
-      case 25: {
+      case 27: {
         // --------------------------------------------------------------------
         // TESTING USAGE EXAMPLE:
         //
@@ -2662,6 +2664,200 @@ int main(int argc, char *argv[])
         bslma::TestAllocator ta(veryVeryVerbose);
         my_Server server(bsls::TimeInterval(10), &ta);
 
+      } break;
+      case 26: {
+        // --------------------------------------------------------------------
+        // CLOCK-REPLACEMENT BREATHING TEST:
+        //   Exercise the basic functionality of the clock-replacement
+        //   mechanism.
+        //
+        // Concerns:
+        //: 1 The clock replacement mechanism exhibits a basic ability to
+        //:   alter the clock used for scheduling and dispatching events.
+        //
+        // Plan:
+        //: 1 Default-construct a scheduler.
+        //:
+        //: 2 Create a 'bdlmt::TimerEventSchedulerTestTimeSource' object,
+        //:   passing the constructor a pointer to the scheduler.
+        //:
+        //: 3 Call 'now' on the 'bdlmt::TimerEventSchedulerTestTimeSource'
+        //:   object, and store the result in a variable 'basisTime'.
+        //:
+        //: 4 Schedule a one-time event in the scheduler, using the retrieved
+        //:   basis time.
+        //:
+        //: 5 Schedule a recurring event in the scheduler, using no absolute
+        //:   time.
+        //:
+        //: 6 Start the scheduler.
+        //:
+        //: 7 Adjust the time so that the first event will run.  Ensure that
+        //:   the first event has run, and not the second.
+        //:
+        //: 8 Adjust the time so that the recurring event will run.  Ensure
+        //:   that this event has run once.
+        //:
+        //: 9 Adjust the time so that the recurring event will run a second
+        //:    time.  Ensure that this event has run again.
+        //
+        // Testing:
+        //   Basic clock-replacement functionality.
+        // --------------------------------------------------------------------
+
+        // Convention for this test driver:
+        const int mT = DECI_SEC_IN_MICRO_SEC / 10; // 10ms
+
+        // Create objects for both events
+        TestClass1 event1;
+        TestClass1 event2;
+
+        // Construct the scheduler
+        bdlmt::TimerEventScheduler scheduler;
+
+        // Construct the time-source.
+        // Install the time-source in the scheduler.
+        bdlmt::TimerEventSchedulerTestTimeSource timeSource(&scheduler);
+
+        // Retrieve the initial time held in the time-source.
+        bsls::TimeInterval initialAbsoluteTime = timeSource.now();
+
+        // Schedule a single-run event at a 30 second offset.
+        scheduler.scheduleEvent(initialAbsoluteTime + 30,
+                                bdlf::MemFnUtil::memFn(&TestClass1::callback,
+                                                      &event1));
+
+        // Schedule a 60s recurring event.
+        scheduler.startClock(bsls::TimeInterval(60),
+                             bdlf::MemFnUtil::memFn(&TestClass1::callback,
+                                                   &event2));
+
+        // Start the dispatcher thread.
+        scheduler.start();
+
+        // Advance the time by 35 seconds so that the first event will run.
+        timeSource.advanceTime(bsls::TimeInterval(35));
+
+        // Wait while verifying:
+        makeSureTestObjectIsExecuted(event1, mT, 100);
+
+        // Confirm that only the expected event has run.
+        ASSERT(1 == event1.numExecuted());
+        ASSERT(0 == event2.numExecuted());
+
+        // Advance the time by another 30 seconds, so we will be at an offset
+        // of 65 seconds, meaning the recurring event will run once.
+        timeSource.advanceTime(bsls::TimeInterval(30));
+        makeSureTestObjectIsExecuted(event2, mT, 100);
+        ASSERT(1 == event1.numExecuted());
+        ASSERT(1 == event2.numExecuted());
+
+        // Now let the recurring event run exactly once more
+        timeSource.advanceTime(bsls::TimeInterval(60));
+        makeSureTestObjectIsExecuted(event2, mT, 100, 1);
+        ASSERT(1 == event1.numExecuted());
+        ASSERT(2 == event2.numExecuted());
+
+        // Stop the scheduler and finish the test
+        scheduler.stop();
+      } break;
+      case 25: {
+        // --------------------------------------------------------------------
+        // TESTING CLOCKTYPE ACCESSOR
+        //
+        // Concern:
+        //   That the 'clockType' accessor correctly return the clock type the
+        //   object was constructed with.
+        //
+        // Plan:
+        //   Run all c'tors with all values of 'clockType', and verify that
+        //   the value returned by the 'clockType' accessor is as expected.
+        // --------------------------------------------------------------------
+
+        if (verbose) cout << "TESTING CLOCKTYPE ACCESSOR\n"
+                             "==========================\n";
+
+        using namespace TIMER_EVENT_SCHEDULER_TEST_CASE_24;
+        using namespace bdlf::PlaceHolders;
+
+        bdlmt::TimerEventScheduler::Dispatcher dispatcher =
+                                 bdlf::BindUtil::bind(&dispatcherFunction, _1);
+
+        bslma::TestAllocator ta(veryVeryVerbose);
+
+        const bsls::SystemClockType::Enum realTime =
+                                            bsls::SystemClockType::e_REALTIME;
+        const bsls::SystemClockType::Enum monotonic =
+                                            bsls::SystemClockType::e_MONOTONIC;
+
+        ASSERT(realTime != monotonic);
+
+        if (verbose) cout << "Default c'tor\n";
+        {
+            Obj x(&ta);    const Obj& X = x;
+
+            ASSERT(realTime == X.clockType());
+        }
+
+        if (verbose) cout << "Explicit clock type, no dispatcher\n";
+        {
+            Obj x(realTime,  &ta);    const Obj& X = x;
+            Obj y(monotonic, &ta);    const Obj& Y = y;
+
+            ASSERT(realTime  == X.clockType());
+            ASSERT(monotonic == Y.clockType());
+        }
+
+        if (verbose) cout << "Dispatcher, clock type defaults\n";
+        {
+            Obj x(dispatcher, &ta);    const Obj& X = x;
+
+            ASSERT(realTime == X.clockType());
+        }
+
+        if (verbose) cout << "Dispatcher, explicit clock type\n";
+        {
+            Obj x(dispatcher, realTime,  &ta);    const Obj& X = x;
+            Obj y(dispatcher, monotonic, &ta);    const Obj& Y = y;
+
+            ASSERT(realTime  == X.clockType());
+            ASSERT(monotonic == Y.clockType());
+        }
+
+        if (verbose) cout << "num events, clocks\n";
+        {
+            Obj x(0, 0, &ta);    const Obj& X = x;
+
+            ASSERT(realTime == X.clockType());
+        }
+
+        if (verbose) cout << "Num events, clocks, explicit clock type,"
+                                                            " no dispatcher\n";
+        {
+            Obj x(0, 0, realTime,  &ta);    const Obj& X = x;
+            Obj y(0, 0, monotonic, &ta);    const Obj& Y = y;
+
+            ASSERT(realTime  == X.clockType());
+            ASSERT(monotonic == Y.clockType());
+        }
+
+        if (verbose) cout << "Num events, clocks, dispatcher, clock type"
+                                                                 " defaults\n";
+        {
+            Obj x(0, 0, dispatcher, &ta);    const Obj& X = x;
+
+            ASSERT(realTime == X.clockType());
+        }
+
+        if (verbose) cout << "Num events, clocks, explicit clock type,"
+                                                               " dispatcher\n";
+        {
+            Obj x(0, 0, dispatcher, realTime,  &ta);    const Obj& X = x;
+            Obj y(0, 0, dispatcher, monotonic, &ta);    const Obj& Y = y;
+
+            ASSERT(realTime  == X.clockType());
+            ASSERT(monotonic == Y.clockType());
+        }
       } break;
       case 24: {
         // -----------------------------------------------------------------

@@ -38,7 +38,6 @@ BSLS_IDENT_RCSID(ball_fileobserver2_cpp,"$Id$ $CSID$")
 
 #include <bdlt_currenttime.h>
 #include <bdlt_date.h>
-#include <bdlt_serialdateimputil.h>
 #include <bdlt_intervalconversionutil.h>
 #include <bdlt_localtimeoffset.h>
 #include <bdlt_time.h>
@@ -290,16 +289,23 @@ static int openLogFile(bsl::ostream *stream, const char *filename)
     return 0;
 }
 
-
-static int toSerialDate(bdlt::Date date)
-    // Return the elapsed number of days between 01JAN0001 and the specified
-    // 'date'.
+bool fuzzyEqual(const bdlt::Datetime&         a,
+                const bdlt::Datetime&         b,
+                const bdlt::DatetimeInterval& interval)
+    // Return 'true' if the specified 'a' and 'b' times are within 10% of the
+    // specified 'interval' from each other, and 'false' otherwise.  The
+    // behavior is undefined unless '0 <= interval.totalMilliseconds()'.
 {
-    return bdlt::SerialDateImpUtil::ymdToSerial(date.year(),
-                                                date.month(),
-                                                date.day());
-}
+    BSLS_ASSERT(0 <= interval.totalMilliseconds());
 
+    // Note that 'abs(long long)' not available across platforms (C++11).
+
+    bsls::Types::Int64 distance = (a - b).totalMilliseconds();
+    if (distance < 0) {
+        distance = -distance;
+    }
+    return distance < (interval.totalMilliseconds() / 10);
+}
 
 static bdlt::Datetime computeNextRotationTime(
                      const bdlt::Datetime&          referenceStartTimeLocal,
@@ -317,36 +323,30 @@ static bdlt::Datetime computeNextRotationTime(
 {
     BSLS_ASSERT(0 < interval.totalMilliseconds());
 
+    // Note that all the computations must be done in local time because the
+    // 'referenceStartTimeLocal' when converted to UTC might be out of the
+    // representable range of 'bdet_Datetime' ('bdet_Datetime(1, 1, 1)' is a
+    // common reference time).
 
-    // Notice that the logic for computing the next time interval must
-    // currently be expressed using 'bdlt::DelegatingDateImpUtil' to avoid
-    // possible use of 'bsls::Log' to report warnings about date math.  Such
-    // warnings, when issued from within a function in BALL cause an attempt
-    // to recursively re-enter the file-observer (and a dead-lock).  Once
-    // 'bdlt' no longer uses bsls log to report date arithmetic this logic can
-    // be returned to:
-    //..
-    //  bsls::Types::Int64 timeLeft =
-    //      (fileCreationTimeUtc + localTimeOffset - referenceStartTimeLocal).
-    //                    totalMilliseconds() % interval.totalMilliseconds();
-    //..
+    bdlt::Datetime fileCreationTimeLocal =
+                            fileCreationTimeUtc +
+                            localTimeOffsetInterval(fileCreationTimeUtc);
 
-    bdlt::DatetimeInterval localTimeOffset =
-                                  localTimeOffsetInterval(fileCreationTimeUtc);
+    // If the reference start time is (effectively) equal to the file creation
+    // time, don't rotate until at least one interval has occured.  A
+    // fuzzy comparison is required because the time stamps come from
+    // different sources, which may occur in close proximity during the
+    // configuration of logging at task startup (the 'fileCreationTime' is
+    // determined when logging is enabled, while the 'referenceStartTimeLocal'
+    // may be determined on a call to 'rotateOnTimeInterval').
 
-    bdlt::Datetime fileCreationTimeLocal = fileCreationTimeUtc +
-                                           localTimeOffset;
+    if (fuzzyEqual(referenceStartTimeLocal, fileCreationTimeLocal, interval)) {
+        return fileCreationTimeUtc + interval;                        // RETURN
+    }
 
-    int creation  = toSerialDate(fileCreationTimeLocal.date());
-    int reference = toSerialDate(referenceStartTimeLocal.date());
-
-    bdlt::DatetimeInterval fileCreationInterval(creation - reference, 0, 0);
-    fileCreationInterval += bdlt::DatetimeInterval(
-               fileCreationTimeLocal.time() - referenceStartTimeLocal.time());
-
-
-    bsls::Types::Int64 timeLeft = fileCreationInterval.totalMilliseconds() %
-                                  interval.totalMilliseconds();
+    bsls::Types::Int64 timeLeft =
+       (fileCreationTimeLocal - referenceStartTimeLocal).totalMilliseconds() %
+       interval.totalMilliseconds();
 
     // The modulo operator may return a negative number depending on
     // implementation.
@@ -361,13 +361,6 @@ static bdlt::Datetime computeNextRotationTime(
     bdlt::Datetime resultUtc = fileCreationTimeUtc;
     resultUtc.addMilliseconds(timeLeft);
 
-    // Prevent rotation at 'referenceStartTimeLocal' as this may cause an
-    // empty log to be generated if 'rotateOnTimeInterval' is called after
-    // 'enableFileLogging'.
-
-    if (referenceStartTimeLocal == resultUtc + localTimeOffset) {
-        resultUtc += interval;
-    }
     return resultUtc;
 }
 
@@ -386,7 +379,7 @@ void FileObserver2::logRecordDefault(bsl::ostream& stream,
 
     bdlt::Datetime timestamp = fixedFields.timestamp();
     if (d_publishInLocalTime) {
-        int localTimeOffsetInSeconds  =
+        bsls::Types::Int64 localTimeOffsetInSeconds  =
             bdlt::LocalTimeOffset::localTimeOffset(timestamp).totalSeconds();
         timestamp.addSeconds(localTimeOffsetInSeconds);
     }
@@ -397,7 +390,11 @@ void FileObserver2::logRecordDefault(bsl::ostream& stream,
     *ptr = '\n';
     ++ptr;
 
-    int length = timestamp.printToBuffer(ptr, sizeof(buffer) - 1);
+    const int fractionalSecondPrecision = 3;
+
+    int length = timestamp.printToBuffer(
+         ptr, static_cast<int>(sizeof(buffer)) - 1, fractionalSecondPrecision);
+
     ptr += length;
 
 #if defined(BSLS_PLATFORM_CMP_MSVC)
@@ -425,10 +422,10 @@ void FileObserver2::logRecordDefault(bsl::ostream& stream,
     stream.write(message.data(), message.length());
     stream << ' ';
 
-    const ball::UserFields& userFields = record.userFields();
-    const int numUserFields = userFields.length();
-    for (int i = 0; i < numUserFields; ++i) {
-        stream << userFields[i] << ' ';
+    const ball::UserFields& customFields = record.customFields();
+    const int numCustomFields = customFields.length();
+    for (int i = 0; i < numCustomFields; ++i) {
+        stream << customFields[i] << ' ';
     }
 
     stream << '\n';
